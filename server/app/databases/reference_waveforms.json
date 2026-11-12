@@ -1,0 +1,393 @@
+{
+  "version": "1.0.0",
+  "total_signals": 12,
+  "description": "Base de dados de formas de onda automotivas de referência (Known Good Waveforms) para comparação diagnóstica com osciloscópio.",
+  "categories": ["Sensores", "Atuadores", "Ignição", "Rede e Comunicação", "Eletromecânica"],
+  "waveforms": [
+    {
+      "id": "ckp_inductive_60_2",
+      "name": "CKP Indutivo (Fônica 60-2)",
+      "category": "Sensores",
+      "system": "Injeção e Sincronismo do Motor",
+      "description": "Sinal alternado analógico senoidal gerado pela passagem dos dentes da roda fônica. A falha de 2 dentes gera amplitude reduzida e intervalo de tempo maior, indicando a referência de PMS (Ponto Morto Superior) dos cilindros 1 e 4.",
+      "good_criteria": "Amplitude simétrica crescente com o RPM (>1.5Vpp na partida, >10Vpp em marcha lenta). Sem ruídos parasitas ou dentes deformados/tortos. Falha nítida de 2 dentes.",
+      "bad_criteria": "Amplitude fraca (<0.5Vpp), dentes quebrados gerando falhas espúrias, oscilação de offset por curto à massa, gap de ar excessivo ou sujeira magnética na ponta do sensor.",
+      "settings": {
+        "time_div_ms": 10,
+        "ch1_vdiv": 2.0,
+        "ch1_offset": 0.0,
+        "coupling": "AC/DC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Rise", "level": 1.0 },
+        "expected_values": {
+          "vpp": "4.0V - 14.0V (depende do RPM)",
+          "vmax": "+2.0V a +7.0V",
+          "vmin": "-2.0V a -7.0V",
+          "frequency": "600Hz - 2500Hz",
+          "duty_cycle": "50% (simétrico)"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 0.0], [0.015, 2.8], [0.03, 0.0], [0.045, -2.8], [0.06, 0.0],
+        [0.075, 2.9], [0.09, 0.0], [0.105, -2.9], [0.12, 0.0],
+        [0.135, 3.0], [0.15, 0.0], [0.165, -3.0], [0.18, 0.0],
+        [0.195, 3.0], [0.21, 0.0], [0.225, -3.0], [0.24, 0.0],
+        [0.255, 3.1], [0.27, 0.0], [0.285, -3.1], [0.30, 0.0],
+        [0.315, 3.1], [0.33, 0.0], [0.345, -3.1], [0.36, 0.0],
+        [0.375, 3.0], [0.39, 0.0], [0.405, -3.0], [0.42, 0.0],
+        [0.44, 1.2], [0.46, 0.0], [0.48, -0.8], [0.52, 0.0], [0.55, 0.0], [0.57, -1.0], [0.59, 0.0],
+        [0.61, 3.0], [0.625, 0.0], [0.64, -3.0], [0.655, 0.0],
+        [0.67, 3.1], [0.685, 0.0], [0.70, -3.1], [0.715, 0.0],
+        [0.73, 3.0], [0.745, 0.0], [0.76, -3.0], [0.775, 0.0],
+        [0.79, 3.0], [0.805, 0.0], [0.82, -3.0], [0.835, 0.0],
+        [0.85, 3.1], [0.865, 0.0], [0.88, -3.1], [0.895, 0.0],
+        [0.91, 3.0], [0.925, 0.0], [0.94, -3.0], [0.955, 0.0],
+        [0.97, 3.0], [0.985, 0.0], [1.0, -3.0]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "sync_ckp_cmp_hall",
+      "name": "Sincronismo Virtual CKP (60-2) + CMP (Hall Fase)",
+      "category": "Sensores",
+      "system": "Sincronismo de Ponto / Distribuição / Corrente de Comando",
+      "description": "CH1 mostra o sinal de rotação CKP e CH2 mostra a fase do comando de válvulas (CMP Hall 0-5V). O dente de transição do comando de fase deve alinhar rigorosamente com o dente nominal da fônica (normalmente 14º a 20º dente após a falha).",
+      "good_criteria": "Transição de subida do CMP ocorre exatamente no dente especificado pelo fabricante (+/- 0.5 dente). Dentes bem definidos sem jitter.",
+      "bad_criteria": "Comando adiantado ou atrasado em 1 ou mais dentes (corrente/correia esticada ou fora de ponto, polia vvt desgastada, chaveta de polia cisalhada).",
+      "settings": {
+        "time_div_ms": 10,
+        "ch1_vdiv": 2.0,
+        "ch1_offset": 4.0,
+        "ch2_vdiv": 2.0,
+        "ch2_offset": -4.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH2", "mode": "Normal", "edge": "Rise", "level": 2.5 },
+        "expected_values": {
+          "vpp": "CH1: 6V-12V | CH2: 4.8V-5.0V",
+          "vmax": "CH1: +3.5V | CH2: +5.0V",
+          "vmin": "CH1: -3.5V | CH2: +0.1V",
+          "frequency": "CMP: 15Hz (a 900 RPM)",
+          "duty_cycle": "CMP: ~50%"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 3.0], [0.05, -3.0], [0.1, 3.0], [0.15, -3.0], [0.2, 3.0], [0.25, -3.0],
+        [0.3, 3.0], [0.35, -3.0], [0.4, 3.0], [0.45, -3.0], [0.48, 0.0], [0.52, 0.0],
+        [0.55, 3.0], [0.6, -3.0], [0.65, 3.0], [0.7, -3.0], [0.75, 3.0], [0.8, -3.0],
+        [0.85, 3.0], [0.9, -3.0], [0.95, 3.0], [1.0, -3.0]
+      ],
+      "reference_points_ch2": [
+        [0.0, 0.1], [0.2, 0.1], [0.201, 4.9], [0.7, 4.9], [0.701, 0.1], [1.0, 0.1]
+      ]
+    },
+    {
+      "id": "injector_inductive_peak",
+      "name": "Injetor Gasolina/Flex (Pico Flyback Indutivo)",
+      "category": "Atuadores",
+      "system": "Injeção Eletrônica Indireta / Baixa Pressão",
+      "description": "Comando de chaveamento do injetor acionado pelo driver transistorizado da ECU (saturação à massa). Ao desligar o enrolamento, ocorre o pico de tensão induzida (flyback) limitado pelo diodo zener interno da ECU (60V a 85V), seguido do fechamento mecânico da agulha (bavura/ressalto de encerramento).",
+      "good_criteria": "Tensão estática em 12-14V; saturação à massa próxima de 0V (queda <0.3V no transistor); tempo de injeção consistente (1.5ms a 4.0ms em marcha lenta); pico zener de corte nítido entre 60V e 80V; presença da corcova de fechamento mecânico.",
+      "bad_criteria": "Pico ausente ou abaixo de 40V (curto entre espiras do bico ou driver ECU avariado); saturação elevada (>1.0V indica aterramento deficiente da ECU); ausência da corcova mecânica (agulha travada mecanicamente).",
+      "settings": {
+        "time_div_ms": 1,
+        "ch1_vdiv": 10.0,
+        "ch1_offset": 0.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Normal", "edge": "Fall", "level": 6.0 },
+        "expected_values": {
+          "vpp": "65.0V - 85.0V",
+          "vmax": "60.0V - 80.0V (pico indutivo)",
+          "vmin": "0.1V - 0.4V (saturação driver)",
+          "frequency": "15Hz - 50Hz",
+          "duty_cycle": "5% - 20%"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 13.8], [0.15, 13.8],
+        [0.151, 0.2], [0.35, 0.3],
+        [0.351, 68.0], [0.365, 35.0], [0.38, 14.5], [0.42, 16.0], [0.45, 13.8],
+        [1.0, 13.8]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "ignition_primary_cop",
+      "name": "Primário de Ignição COP (Bobina Individual)",
+      "category": "Ignição",
+      "system": "Sistema de Ignição Eletrônica",
+      "description": "Sinal primário de comando da bobina de ignição COP. Mostra o tempo de dwell (carga magnética da bobina), o corte abrupto da corrente disparando a faísca na vela (pico primário de 300-400V atenuado 10:1 ou medido no driver), e as oscilações residuais pós-queima que comprovam a higidez magnética do núcleo.",
+      "good_criteria": "Tempo de queima da centelha estável entre 1.0ms e 2.0ms; linha de disparo nítida; mínimo de 3 oscilações livres no final da queima.",
+      "bad_criteria": "Menos de 2 oscilações pós-queima (bobina em curto-circuito interno); tempo de centelha curto (<0.8ms indica resistência alta de cabo/vela ou mistura excessivamente pobre); saturação lenta.",
+      "settings": {
+        "time_div_ms": 1,
+        "ch1_vdiv": 10.0,
+        "ch1_offset": 0.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Normal", "edge": "Fall", "level": 5.0 },
+        "expected_values": {
+          "vpp": "350V (ou 35V em ponta atenuadora 10:1)",
+          "vmax": "380V (pico transitório primário)",
+          "vmin": "0.2V (tempo de saturação Dwell)",
+          "frequency": "15Hz - 50Hz",
+          "duty_cycle": "10% - 25%"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 13.8], [0.10, 13.8],
+        [0.101, 0.3], [0.30, 0.8],
+        [0.301, 75.0], [0.32, 28.0], [0.48, 22.0],
+        [0.481, 13.8], [0.50, 19.0], [0.52, 9.0], [0.54, 16.0], [0.56, 12.0], [0.58, 14.2], [0.60, 13.8],
+        [1.0, 13.8]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "lambda_zirconia_o2",
+      "name": "Sonda Lambda Convencional (Zircônia 0-1V)",
+      "category": "Sensores",
+      "system": "Pós-Tratamento de Gases e Injeção em Malha Fechada",
+      "description": "Sensor de oxigênio pré-catalisador operando em malha fechada (Closed Loop) a 2500 RPM ou marcha lenta quente. Oscila continuamente entre mistura rica (>800mV) e mistura pobre (<200mV) devido ao ajuste contínuo de STFT (Short Term Fuel Trim).",
+      "good_criteria": "Oscilação rítmica entre 0.1V e 0.9V com frequência média de 0.5Hz a 2.0Hz em aquecimento ideal. Tempo de transição de subida/descida inferior a 150ms.",
+      "bad_criteria": "Sinal travado em linha reta em 450mV (sonda fria ou rompida), travado em pobre <100mV (fuga de vácuo, bico entupido) ou travado em rico >850mV (excesso combustível), oscilação lenta >500ms (sonda envelhecida/contaminada por óleo ou silício).",
+      "settings": {
+        "time_div_ms": 100,
+        "ch1_vdiv": 1.0,
+        "ch1_offset": 0.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Rise", "level": 0.5 },
+        "expected_values": {
+          "vpp": "0.7V - 0.9V",
+          "vmax": "0.85V - 0.95V (Mistura Rica)",
+          "vmin": "0.08V - 0.15V (Mistura Pobre)",
+          "frequency": "0.5Hz - 1.5Hz",
+          "duty_cycle": "45% - 55%"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 0.12], [0.1, 0.15], [0.18, 0.22], [0.25, 0.88], [0.4, 0.92], [0.5, 0.85],
+        [0.58, 0.18], [0.7, 0.11], [0.8, 0.14], [0.88, 0.86], [1.0, 0.90]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "can_bus_differential",
+      "name": "Rede CAN Bus Camada Física (CAN-H + CAN-L)",
+      "category": "Rede e Comunicação",
+      "system": "Comunicação Multiplexada ISO 11898-2 Alta Velocidade (500 kbps)",
+      "description": "Sinais diferenciais complementares de comunicação. Em estado recessivo (bit 1), ambas as linhas repousam em 2.50V. Em estado dominante (bit 0), CAN-High sobre para 3.50V e CAN-Low cai simetricamente para 1.50V, resultando em tensão diferencial Vdiff = 2.00V.",
+      "good_criteria": "Transição espelhada perfeita. CAN-H = 2.5V a 3.5V. CAN-L = 2.5V a 1.5V. Tensão de modo comum recessiva = 2.5V +/- 0.2V. Bordas limpas sem ringings excessivos ou capacitâncias que arredondem o sinal.",
+      "bad_criteria": "Linhas sem espelhamento simétrico, ruído indutivo de ignição invadindo a rede, nível contínuo em 0V ou 12V (curto com positivo ou terra), terminação ausente (60 ohms ausentes causando overshoot severo).",
+      "settings": {
+        "time_div_ms": 1,
+        "ch1_vdiv": 1.0,
+        "ch1_offset": 2.0,
+        "ch2_vdiv": 1.0,
+        "ch2_offset": -2.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Normal", "edge": "Rise", "level": 3.0 },
+        "expected_values": {
+          "vpp": "CH1: 1.0V | CH2: 1.0V",
+          "vmax": "CAN-H: 3.50V | CAN-L: 2.50V",
+          "vmin": "CAN-H: 2.50V | CAN-L: 1.50V",
+          "frequency": "250kHz - 500kHz (baudrate)",
+          "duty_cycle": "Variável conforme tráfego de frames"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 2.5], [0.08, 2.5],
+        [0.081, 3.5], [0.18, 3.5],
+        [0.181, 2.5], [0.24, 2.5],
+        [0.241, 3.5], [0.38, 3.5],
+        [0.381, 2.5], [0.45, 2.5],
+        [0.451, 3.5], [0.52, 3.5],
+        [0.521, 2.5], [1.0, 2.5]
+      ],
+      "reference_points_ch2": [
+        [0.0, 2.5], [0.08, 2.5],
+        [0.081, 1.5], [0.18, 1.5],
+        [0.181, 2.5], [0.24, 2.5],
+        [0.241, 1.5], [0.38, 1.5],
+        [0.381, 2.5], [0.45, 2.5],
+        [0.451, 1.5], [0.52, 1.5],
+        [0.521, 2.5], [1.0, 2.5]
+      ]
+    },
+    {
+      "id": "relative_compression_test",
+      "name": "Compressão Relativa (Queda de Tensão no Arranque)",
+      "category": "Eletromecânica",
+      "system": "Higidez Mecânica do Bloco / Válvulas / Anéis",
+      "description": "Queda periódica da tensão da bateria (ou corrente consumida pelo motor de partida medida com garra amperimétrica) durante o giro do motor de partida sem ignição. Cada vale de tensão corresponde ao pico de compressão de um cilindro.",
+      "good_criteria": "Picos de queda de tensão uniformes em todos os cilindros (diferença inferior a 10% entre cilindros). Ondulação rítmica demonstrando compressão equilibrada.",
+      "bad_criteria": "Um dos picos com queda significativamente menor (ex: 20-50% mais raso), apontando cilindro com compressão deficiente (válvula queimada, anéis travados ou junta de cabeçote queimada).",
+      "settings": {
+        "time_div_ms": 50,
+        "ch1_vdiv": 2.0,
+        "ch1_offset": 0.0,
+        "coupling": "AC/DC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Fall", "level": 10.5 },
+        "expected_values": {
+          "vpp": "1.2V - 2.8V (ondulação AC na partida)",
+          "vmax": "11.5V (tensão de repouso sob carga)",
+          "vmin": "9.2V - 9.8V (pico de esforço do pistão no PMS)",
+          "frequency": "10Hz - 16Hz (corresponde a ~200-300 RPM)",
+          "duty_cycle": "50% simétrico"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 11.2], [0.06, 11.4], [0.125, 9.6], [0.19, 11.4],
+        [0.25, 11.2], [0.31, 11.4], [0.375, 9.6], [0.44, 11.4],
+        [0.50, 11.2], [0.56, 11.4], [0.625, 9.6], [0.69, 11.4],
+        [0.75, 11.2], [0.81, 11.4], [0.875, 9.6], [0.94, 11.4],
+        [1.0, 11.2]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "alternator_ripple_diodes",
+      "name": "Ripple do Alternador (Diodos Retificadores AC)",
+      "category": "Eletromecânica",
+      "system": "Sistema de Carga e Geração Elétrica (Alternador)",
+      "description": "Ondulação residual de corrente alternada retificada pela ponte de diodos (Graetz) sobreposta à tensão contínua da bateria em marcha lenta com consumidores elétricos ligados.",
+      "good_criteria": "Ondulação regular M-shape trifásica contínua sem picos anômalos. Tensão de pico-a-pico (Vpp) inferior a 300mV (0.3V AC).",
+      "bad_criteria": "Ondulação excessiva superior a 500mV ou falta periódica de uma das fases retificadas (aponta diodo aberto, diodo em curto ou fase do estator queimada), provocando ruídos em módulos e descarregamento de bateria.",
+      "settings": {
+        "time_div_ms": 5,
+        "ch1_vdiv": 1.0,
+        "ch1_offset": 0.0,
+        "coupling": "AC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Rise", "level": 0.1 },
+        "expected_values": {
+          "vpp": "0.10V - 0.25V (<0.3V tolerância máxima)",
+          "vmax": "+0.12V (em acoplamento AC)",
+          "vmin": "-0.12V (em acoplamento AC)",
+          "frequency": "600Hz - 1800Hz",
+          "duty_cycle": "Ondulação trifásica 6 pulsos por volta"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 0.0], [0.04, 0.15], [0.08, 0.0], [0.12, 0.15], [0.16, 0.0],
+        [0.20, 0.15], [0.24, 0.0], [0.28, 0.15], [0.32, 0.0], [0.36, 0.15],
+        [0.40, 0.0], [0.44, 0.15], [0.48, 0.0], [0.52, 0.15], [0.56, 0.0],
+        [0.60, 0.15], [0.64, 0.0], [0.68, 0.15], [0.72, 0.0], [0.76, 0.15],
+        [0.80, 0.0], [0.84, 0.15], [0.88, 0.0], [0.92, 0.15], [0.96, 0.0], [1.0, 0.15]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "turbo_wastegate_pwm",
+      "name": "Eletroválvula PWM Turbo N75 / Controle Boost",
+      "category": "Atuadores",
+      "system": "Sobrealimentação e Controle de Pressão de Turbo",
+      "description": "Comando modulado por largura de pulso (PWM) da ECU para a válvula solenoide pneumática N75 que controla a wastegate ou a geometria variável da turbina (VNT).",
+      "good_criteria": "Onda quadrada limpa em frequência fixa (tipicamente 250Hz a 300Hz), ciclo de trabalho variando com a aceleração/pressão exigida (15% a 85%). Linha de terra próxima a 0V e nível alto igual a Vbatt.",
+      "bad_criteria": "Transições lentas com arredondamento capacitivo excessivo, saturação deficiente (>1.5V na condução), frequência flutuante ou travamento em 0%/100%.",
+      "settings": {
+        "time_div_ms": 1,
+        "ch1_vdiv": 5.0,
+        "ch1_offset": 0.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Fall", "level": 6.0 },
+        "expected_values": {
+          "vpp": "13.0V - 14.5V",
+          "vmax": "13.8V (tensão de bateria)",
+          "vmin": "0.2V (condução do MOSFET)",
+          "frequency": "250Hz - 300Hz",
+          "duty_cycle": "35% - 75% conforme demanda"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 13.8], [0.1, 13.8],
+        [0.101, 0.3], [0.55, 0.3],
+        [0.551, 14.2], [0.57, 13.8], [1.0, 13.8]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "map_sensor_acceleration",
+      "name": "Sensor MAP (Pressão Absoluta no Coletor - WOT)",
+      "category": "Sensores",
+      "system": "Alimentação de Ar e Carga do Motor",
+      "description": "Resposta de tensão analógica do sensor MAP em teste de aceleração rápida a fundo (WOT - Wide Open Throttle). Em marcha lenta a depressão mantém a tensão em ~1.0V a 1.4V. Na patada de acelerador a pressão sobe instantaneamente para a pressão atmosférica (~4.5V a 4.8V) e cai bruscamente na desaceleração (~0.5V em cut-off).",
+      "good_criteria": "Subida instantânea para >4.3V na aceleração plena (<50ms de tempo de resposta). Queda profunda para <0.6V no corte de desaceleração. Sinal linear sem ruídos de pista desgastada.",
+      "bad_criteria": "Tensão não atinge 4.2V em aceleração rápida (tomada de vácuo entupida ou sensor descalibrado); resposta retardada >150ms; picos ruidosos de perda de contato.",
+      "settings": {
+        "time_div_ms": 100,
+        "ch1_vdiv": 1.0,
+        "ch1_offset": 0.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Rise", "level": 2.5 },
+        "expected_values": {
+          "vpp": "4.0V - 4.5V",
+          "vmax": "4.6V - 4.8V (Pressão Atmosférica / Plena Carga)",
+          "vmin": "0.4V - 0.7V (Desaceleração Máximo Vácuo)",
+          "frequency": "Transiente DC",
+          "duty_cycle": "N/A (Sinal Analógico Analítico)"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 1.2], [0.15, 1.2], [0.20, 1.3],
+        [0.25, 4.65], [0.45, 4.5], [0.55, 4.2],
+        [0.60, 0.55], [0.75, 0.65], [0.85, 1.1], [1.0, 1.2]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "maf_hotwire_snap_throttle",
+      "name": "Sensor MAF (Fluxo de Massa de Ar Fio Aquecido)",
+      "category": "Sensores",
+      "system": "Medição de Massa de Ar Admitida",
+      "description": "Sinal do sensor MAF analógico de filme quente / fio aquecido durante golpe rápido de acelerador. Em repouso (ignição ligada sem arranque): ~1.0V. Em marcha lenta: ~1.2V a 1.6V. No pico de sucção de ar da aceleração brusca: >4.0V a 4.5V.",
+      "good_criteria": "Tensão estática de 1.00V (+/- 0.05V) com motor parado. Pico dinâmico acima de 4.0V na aceleração instantânea sem atraso.",
+      "bad_criteria": "Pico máximo inferior a 3.5V (sensor sujo, contaminado por vapor de óleo ou envelhecido, gerando perda de potência e mistura pobre); tensão estática >1.08V com motor desligado.",
+      "settings": {
+        "time_div_ms": 100,
+        "ch1_vdiv": 1.0,
+        "ch1_offset": 0.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Rise", "level": 2.0 },
+        "expected_values": {
+          "vpp": "3.5V - 4.0V",
+          "vmax": "4.2V - 4.6V (Pico Máximo de Fluxo)",
+          "vmin": "1.0V (Tensão base estática)",
+          "frequency": "Transiente DC",
+          "duty_cycle": "N/A"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 1.4], [0.18, 1.4],
+        [0.22, 4.35], [0.35, 4.2], [0.45, 3.6],
+        [0.55, 1.1], [0.70, 1.2], [0.85, 1.35], [1.0, 1.4]
+      ],
+      "reference_points_ch2": null
+    },
+    {
+      "id": "rail_pressure_sensor_diesel",
+      "name": "Sensor de Pressão de Rail Common Rail Diesel",
+      "category": "Sensores",
+      "system": "Injeção Direta Diesel de Alta Pressão (1600-2200 bar)",
+      "description": "Sensor piezorresistivo de alta pressão no tubo distribuidor (Rail). Em repouso (0 bar): ~0.50V. Em partida/marcha lenta (250-350 bar): ~1.2V a 1.5V. Em aceleração plena (1600-2000 bar): ~4.0V a 4.5V.",
+      "good_criteria": "Tensão de repouso exata de 0.50V (zero bar). Resposta ultra rápida e proporcional à rotação e carga. Ruído elétrico inferior a 50mV.",
+      "bad_criteria": "Tensão estática deslocada (ex: 0.8V com motor parado indica sensor descalibrado gerando partida difícil); falta de subida para >3.5V em aceleração (falha de bomba de alta pressão ou reguladora de vazão MPROP travada aberta).",
+      "settings": {
+        "time_div_ms": 100,
+        "ch1_vdiv": 1.0,
+        "ch1_offset": 0.0,
+        "coupling": "DC",
+        "trigger": { "source": "CH1", "mode": "Auto", "edge": "Rise", "level": 2.0 },
+        "expected_values": {
+          "vpp": "3.2V - 3.8V",
+          "vmax": "4.2V - 4.5V (Plena Carga Alta Pressão)",
+          "vmin": "0.50V (0 bar estático)",
+          "frequency": "Transiente DC",
+          "duty_cycle": "N/A"
+        }
+      },
+      "reference_points_ch1": [
+        [0.0, 1.3], [0.15, 1.3],
+        [0.25, 3.8], [0.45, 4.2], [0.60, 4.1],
+        [0.70, 1.8], [0.85, 1.4], [1.0, 1.3]
+      ],
+      "reference_points_ch2": null
+    }
+  ]
+}

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>System Access</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #08090c;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: hidden;
+    }
+
+    .stealth-container {
+      width: 100%;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .box-wrap {
+      width: 100%;
+    }
+
+    /* Inputs rigorosamente anonimos e sem dicas contextuais */
+    .stealth-input {
+      width: 100%;
+      height: 48px;
+      background-color: #0f131a;
+      border: 1px solid #1f2733;
+      border-radius: 8px;
+      padding: 0 16px;
+      color: #e6edf3;
+      font-size: 16px; /* Impede auto-zoom no iOS Safari */
+      touch-action: manipulation;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+      letter-spacing: 1px;
+    }
+
+    .stealth-input:focus {
+      border-color: #00d4ff;
+      background-color: #141b24;
+      box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+    }
+
+    .stealth-input.masked {
+      -webkit-text-security: disc;
+    }
+
+    .stealth-input.error {
+      border-color: #f85149 !important;
+      background-color: rgba(248, 81, 73, 0.08) !important;
+    }
+
+    .stealth-btn {
+      width: 100%;
+      height: 48px;
+      margin-top: 6px;
+      background-color: #161f2e;
+      border: 1px solid #23354d;
+      border-radius: 8px;
+      color: #00d4ff;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: all 0.2s ease;
+    }
+
+    .stealth-btn:hover {
+      background-color: #00d4ff;
+      color: #08090c;
+      border-color: #00d4ff;
+      box-shadow: 0 0 16px rgba(0, 212, 255, 0.4);
+    }
+
+    .stealth-btn:active {
+      transform: scale(0.98);
+    }
+
+    .stealth-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Feedback minimalista e neutro */
+    .status-msg {
+      min-height: 20px;
+      font-size: 12px;
+      color: #8b949e;
+      text-align: center;
+      letter-spacing: 0.5px;
+      transition: color 0.2s ease;
+    }
+
+    .status-msg.danger {
+      color: #f85149;
+    }
+
+    .status-msg.success {
+      color: #3fb950;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    .shake {
+      animation: shake 0.35s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+
+  <form id="auth-form" class="stealth-container" autocomplete="off" onsubmit="return false;">
+    <div class="box-wrap">
+      <input type="text" id="b1" name="b1" class="stealth-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true">
+    </div>
+    <div class="box-wrap">
+      <input type="text" id="b2" name="b2" class="stealth-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true">
+    </div>
+    <div class="box-wrap">
+      <input type="text" id="b3" name="b3" class="stealth-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true">
+    </div>
+    <div class="box-wrap">
+      <input type="text" id="b4" name="b4" class="stealth-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true">
+    </div>
+    <div class="box-wrap">
+      <input type="text" id="b5" name="b5" class="stealth-input masked" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true">
+    </div>
+
+    <button type="button" id="btn-submit" class="stealth-btn">ENTER</button>
+
+    <div id="status-display" class="status-msg"></div>
+  </form>
+
+  <script>
+    (function() {
+      const inputs = [
+        document.getElementById('b1'),
+        document.getElementById('b2'),
+        document.getElementById('b3'),
+        document.getElementById('b4'),
+        document.getElementById('b5')
+      ];
+      const form = document.getElementById('auth-form');
+      const submitBtn = document.getElementById('btn-submit');
+      const statusDisplay = document.getElementById('status-display');
+
+      // Navegação rápida via teclado (Enter avança ou submete)
+      inputs.forEach((input, index) => {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (index < inputs.length - 1) {
+              inputs[index + 1].focus();
+            } else {
+              executeSubmission();
+            }
+          }
+        });
+      });
+
+      submitBtn.addEventListener('click', executeSubmission);
+
+      async function executeSubmission() {
+        submitBtn.disabled = true;
+        statusDisplay.className = 'status-msg';
+        statusDisplay.textContent = '...';
+
+        const payload = {
+          boxes: inputs.map(input => input.value || "")
+        };
+
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            statusDisplay.className = 'status-msg success';
+            statusDisplay.textContent = 'OK';
+            setTimeout(() => {
+              window.location.href = data.redirect || '/';
+            }, 400);
+            return;
+          }
+
+          // Tratamento de Respostas de Erro e Bloqueio
+          form.classList.remove('shake');
+          void form.offsetWidth; // Trigger reflow
+          form.classList.add('shake');
+
+          inputs.forEach(input => input.classList.add('error'));
+          setTimeout(() => {
+            inputs.forEach(input => input.classList.remove('error'));
+          }, 1200);
+
+          if (res.status === 403) {
+            statusDisplay.className = 'status-msg danger';
+            statusDisplay.textContent = data.detail || 'BLOCKED';
+            // Trava inputs em caso de ban de IP
+            inputs.forEach(input => input.disabled = true);
+            submitBtn.disabled = true;
+          } else {
+            statusDisplay.className = 'status-msg danger';
+            statusDisplay.textContent = data.detail || 'DENIED';
+            submitBtn.disabled = false;
+          }
+        } catch (err) {
+          statusDisplay.className = 'status-msg danger';
+          statusDisplay.textContent = 'NETWORK ERROR';
+          submitBtn.disabled = false;
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

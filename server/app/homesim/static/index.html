@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HomeSIM — Guardião do Chip e Celular Remoto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-fast {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.15); }
+    }
+    .status-pulse { animation: pulse-fast 2s infinite ease-in-out; }
+    .otp-badge { letter-spacing: 0.15em; font-family: monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i class="fa-solid fa-sim-card text-white text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="font-bold text-lg text-white tracking-tight">HomeSIM</h1>
+            <span class="text-xs bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full font-medium border border-indigo-500/30">Sentinel</span>
+          </div>
+          <p class="text-xs text-slate-400">Guardião do Celular & Relé de 2FA</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <!-- Live WS Status Badge -->
+        <div id="wsBadge" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 border border-slate-700/60">
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-400 status-pulse" id="wsDot"></span>
+          <span id="wsText">Conectando...</span>
+        </div>
+
+        <!-- Botão Conectar Celular via QR Code -->
+        <button onclick="openPairModal()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition">
+          <i class="fa-solid fa-qrcode text-sm"></i>
+          <span class="hidden sm:inline">Conectar Celular</span>
+        </button>
+
+        <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-slate-700/60" title="Configurações">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 space-y-6">
+
+    <!-- Overview Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- Card 1: Estado do Celular -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">
+          <span>Aparelho Remoto</span>
+          <i class="fa-solid fa-mobile-screen-button text-indigo-400"></i>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <h2 id="devName" class="text-xl font-bold text-white truncate">Aguardando celular...</h2>
+        </div>
+        <div class="mt-3 flex items-center space-x-2 text-xs">
+          <span id="devStatusDot" class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+          <span id="devStatusText" class="text-slate-400">Nenhum sinal recebido</span>
+        </div>
+        <div id="devLastSeen" class="text-[11px] text-slate-500 mt-1">Visto por último: nunca</div>
+      </div>
+
+      <!-- Card 2: Bateria & Tomada -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">
+          <span>Bateria & Energia</span>
+          <i class="fa-solid fa-bolt text-amber-400" id="chargingIcon"></i>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="batteryPercent" class="text-3xl font-extrabold text-white">--%</span>
+          <span id="chargingStatus" class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">Verificando</span>
+        </div>
+        <!-- Barra de Progresso Bateria -->
+        <div class="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
+          <div id="batteryBar" class="bg-emerald-500 h-full w-0 transition-all duration-500"></div>
+        </div>
+        <div class="flex justify-between text-[11px] text-slate-500 mt-2">
+          <span>Temp: <strong id="batteryTemp" class="text-slate-300">-- °C</strong></span>
+          <span id="batteryHealthBadge" class="text-emerald-400">Segura</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Chip SIM & Antena -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">
+          <span>Chip & Operadora</span>
+          <i class="fa-solid fa-signal text-emerald-400"></i>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="carrierName" class="text-xl font-bold text-white truncate">Sem Chip</span>
+        </div>
+        <div class="mt-3 flex items-center space-x-3 text-xs">
+          <!-- Signal Bars -->
+          <div class="flex items-end space-x-0.5 h-4" id="signalBars">
+            <span class="w-1.5 h-1.5 rounded-sm bg-slate-700"></span>
+            <span class="w-1.5 h-2.5 rounded-sm bg-slate-700"></span>
+            <span class="w-1.5 h-3.5 rounded-sm bg-slate-700"></span>
+            <span class="w-1.5 h-4 rounded-sm bg-slate-700"></span>
+          </div>
+          <span id="signalText" class="text-slate-400">-- dBm</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-2 truncate">
+          Wi-Fi: <span id="wifiSsid" class="text-slate-300">--</span> (<span id="wifiIp">--</span>)
+        </div>
+      </div>
+
+      <!-- Card 4: Alertas e Estatísticas -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">
+          <span>Mensagens & 2FA</span>
+          <i class="fa-solid fa-envelope-open-text text-violet-400"></i>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="totalSmsCount" class="text-3xl font-extrabold text-white">0</span>
+          <span class="text-xs text-slate-400">SMS recebidos</span>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+          <span>Códigos 2FA:</span>
+          <span id="totalOtpCount" class="font-bold text-indigo-400">0</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-2 flex items-center space-x-1">
+          <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+          <span>Servidor 100% privado</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Main Content: SMS Inbox + History Chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Coluna da Esquerda (2 cols): Caixa de Entrada de SMS e Chamadas -->
+      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+        
+        <!-- Tab Switcher -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <button id="tabSmsBtn" onclick="switchMainTab('sms')" class="px-3 py-1.5 rounded-xl font-bold text-xs bg-indigo-600 text-white shadow transition flex items-center space-x-1.5">
+              <i class="fa-solid fa-inbox"></i>
+              <span>Mensagens & 2FA</span>
+              <span id="smsBadgeCount" class="ml-1 bg-white/20 text-white px-1.5 py-0.5 rounded-full text-[10px]">0</span>
+            </button>
+            <button id="tabCallsBtn" onclick="switchMainTab('calls')" class="px-3 py-1.5 rounded-xl font-bold text-xs bg-slate-800 text-slate-400 hover:text-white transition flex items-center space-x-1.5">
+              <i class="fa-solid fa-phone"></i>
+              <span>Chamadas</span>
+              <span id="callsBadgeCount" class="ml-1 bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded-full text-[10px]">0</span>
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-2 w-full sm:w-auto">
+            <div class="relative w-full sm:w-56">
+              <input type="text" id="smsSearchInput" oninput="filterActiveList()" placeholder="Buscar..." class="w-full bg-slate-800 border border-slate-700/70 rounded-xl px-3 py-1.5 pl-8 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition">
+              <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-500 text-xs"></i>
+            </div>
+            <button onclick="refreshActiveTab()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-slate-700/60" title="Atualizar">
+              <i class="fa-solid fa-arrows-rotate text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Painel 1: SMS List Container -->
+        <div id="smsPanel" class="space-y-3">
+          <div id="smsList" class="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+            <div id="emptySmsState" class="py-16 text-center text-slate-500 space-y-3">
+              <div class="w-12 h-12 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                <i class="fa-solid fa-comment-slash text-xl"></i>
+              </div>
+              <p class="text-sm">Nenhum SMS recebido ainda.</p>
+              <p class="text-xs text-slate-600 max-w-sm mx-auto">Mensagens SMS e códigos 2FA lidos do banco nativo do celular aparecem aqui em tempo real.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Painel 2: Calls List Container -->
+        <div id="callsPanel" class="space-y-3 hidden">
+          <div id="callsList" class="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+            <div id="emptyCallsState" class="py-16 text-center text-slate-500 space-y-3">
+              <div class="w-12 h-12 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                <i class="fa-solid fa-phone-slash text-xl"></i>
+              </div>
+              <p class="text-sm">Nenhuma chamada registrada.</p>
+              <p class="text-xs text-slate-600 max-w-sm mx-auto">Chamadas perdidas e recebidas do chip aparecem aqui com remetente e horário.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Coluna da Direita (1 col): Gráfico de Bateria & Status de Conexão -->
+      <div class="space-y-6">
+        <!-- Gráfico de Bateria -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-chart-line text-emerald-400"></i>
+              <h3 class="font-bold text-white text-sm">Histórico de Bateria</h3>
+            </div>
+            <span class="text-[11px] text-slate-400">Últimos pings</span>
+          </div>
+
+          <div class="h-48 relative">
+            <canvas id="batteryChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Card de Ajuda / Instruções Rápidas -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+          <div class="flex items-center space-x-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Dicas do Guardião</span>
+          </div>
+          <ul class="text-xs text-slate-400 space-y-2 list-disc list-inside">
+            <li>Mantenha o celular conectado a um carregador padrão de 5V/1A ou 5V/2A.</li>
+            <li>Conecte ao Wi-Fi 2.4GHz da casa para menor consumo de energia e maior alcance.</li>
+            <li>O app HomeSIM no celular roda como serviço ininterrupto e reinicia sozinho se o aparelho for reiniciado.</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Modal de Pareamento por QR Code -->
+  <div id="pairModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-qrcode text-indigo-400"></i>
+          <span>Conectar Celular</span>
+        </h3>
+        <button onclick="closePairModal()" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-400">
+        Abra o app <strong>HomeSIM</strong> no celular e clique em <span class="text-indigo-400 font-semibold">"Escanear QR Code do Painel Web"</span>.
+      </p>
+
+      <div class="flex justify-center p-3 bg-white rounded-xl mx-auto w-fit shadow-inner" id="qrcodeContainer">
+        <!-- Canvas do QR Code inserido dinamicamente -->
+      </div>
+
+      <div class="text-[11px] text-slate-500 font-mono" id="pairTokenInfo">
+        Gerando chave temporária...
+      </div>
+
+      <button onclick="closePairModal()" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+        Fechar
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal de Configurações -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-gear text-indigo-400"></i>
+          <span>Configurações do HomeSIM</span>
+        </h3>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Telegram Bot Token (Opcional)</label>
+          <input type="text" id="cfgTgToken" placeholder="Ex: 123456789:ABCdefGHIjklMNOpqrs..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+          <p class="text-[11px] text-slate-500 mt-1">Permite receber SMS e códigos 2FA diretamente no seu Telegram no bolso.</p>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Telegram Chat ID (Opcional)</label>
+          <input type="text" id="cfgTgChatId" placeholder="Ex: 987654321" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium mb-1">Alerta de Celular Offline (Minutos)</label>
+          <input type="number" id="cfgOfflineMinutes" value="30" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+          <p class="text-[11px] text-slate-500 mt-1">Tempo sem sinal antes de marcar o celular como offline.</p>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-3 border-t border-slate-800">
+        <button onclick="closeSettingsModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-medium transition">Cancelar</button>
+        <button onclick="saveSettings()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 text-xs font-semibold shadow-lg shadow-indigo-600/30 transition">Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 bg-indigo-600 text-white text-xs font-medium px-4 py-3 rounded-xl shadow-xl flex items-center space-x-2 transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
+    <i class="fa-solid fa-check-circle text-base"></i>
+    <span id="toastMessage">Código copiado com sucesso!</span>
+  </div>
+
+  <script>
+    const script = document.createElement('script');
+    const base = window.location.pathname.startsWith('/homesim') ? '/homesim' : '';
+    script.src = `${base}/static/app.js?v=${Date.now()}`;
+    document.body.appendChild(script);
+  </script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+{
+  "vw_group": {
+    "name": "Volkswagen AG (VW, Audi, SEAT, Škoda)",
+    "can_speed_kbps": 500,
+    "diag_protocol": "ISO14229_UDS",
+    "gateway_module": {"id": "J533", "tx": "0x710", "rx": "0x77A"},
+    "modules": {
+      "ECM": {"name": "Injeção / Motor (J623)", "tx": "0x7E0", "rx": "0x7E8"},
+      "TCM": {"name": "Transmissão DSG/AT (J217)", "tx": "0x7E1", "rx": "0x7E9"},
+      "ABS": {"name": "Freios / ESP (J104)", "tx": "0x7E2", "rx": "0x7EA"},
+      "HVAC": {"name": "Climatronic (J255)", "tx": "0x7E3", "rx": "0x7EB"},
+      "BCM": {"name": "Rede de Bordo (J519)", "tx": "0x7E4", "rx": "0x7EC"},
+      "SRS": {"name": "Airbag (J234)", "tx": "0x7E5", "rx": "0x7EF"}
+    },
+    "dpf_system": {
+      "pid_diff_pressure": "0x22114F",
+      "pid_soot_mass": "0x221150",
+      "limits": {
+        "idle_diff_pressure_max_mbar": 12.0,
+        "load_diff_pressure_max_mbar": 80.0,
+        "max_soot_service_regen_g": 40.0
+      }
+    },
+    "airbag_system": {
+      "squib_resistance_nominal_ohm": {"min": 1.8, "max": 2.8},
+      "max_allowable_resistance_ohm": 4.5
+    },
+    "hvac_system": {
+      "compressor_valve_pwm_freq_hz": 400,
+      "refrigerant_pressure_bar": {"min_run": 2.0, "normal_high": 16.0, "max_cutoff": 28.0}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 5.0},
+      "cmp": {"type": "hall", "pattern": "asymmetric_4_tooth", "high_v": 5.0, "low_v": 0.0}
+    }
+  },
+  "stellantis_fca": {
+    "name": "Stellantis FCA (Fiat, Jeep, Alfa Romeo, RAM)",
+    "can_speed_kbps": 500,
+    "diag_protocol": "ISO14229_UDS",
+    "has_sgw": true,
+    "modules": {
+      "ECM": {"name": "Powertrain Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "TCM": {"name": "Transmissão Automática", "tx": "0x7E1", "rx": "0x7E9"},
+      "ABS": {"name": "Freios BSM", "tx": "0x7E2", "rx": "0x7EA"},
+      "BCM": {"name": "Body Computer", "tx": "0x7E4", "rx": "0x7EC"},
+      "SRS": {"name": "Airbag ORC", "tx": "0x7E5", "rx": "0x7EF"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 4.5}
+    }
+  },
+  "stellantis_psa": {
+    "name": "Stellantis PSA (Peugeot, Citroën, Opel)",
+    "can_speed_kbps": 500,
+    "diag_protocol": "ISO14229_UDS",
+    "modules": {
+      "ECM": {"name": "Calculateur Moteur (CMM)", "tx": "0x7E0", "rx": "0x7E8"},
+      "BSI": {"name": "Boîtier Servitude Intelligent", "tx": "0x7E4", "rx": "0x7EC"},
+      "ABS": {"name": "ESP / Freios", "tx": "0x7E2", "rx": "0x7EA"},
+      "SRS": {"name": "Calculateur Airbag", "tx": "0x7E5", "rx": "0x7EF"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 4.0}
+    }
+  },
+  "toyota_lexus": {
+    "name": "Toyota & Lexus",
+    "can_speed_kbps": 500,
+    "diag_protocol": "ISO15765_UDS",
+    "modules": {
+      "ECM": {"name": "Engine Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "HV": {"name": "Hybrid Inverter / Management", "tx": "0x7E2", "rx": "0x7EA"},
+      "ABS": {"name": "Skid Control ECU", "tx": "0x7B0", "rx": "0x7B8"},
+      "SRS": {"name": "Airbag Center ECU", "tx": "0x780", "rx": "0x788"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 36, "teeth_missing": 2, "normal_amplitude_v": 4.5}
+    }
+  },
+  "ford": {
+    "name": "Ford Motor Company",
+    "can_speed_kbps": 500,
+    "modules": {
+      "PCM": {"name": "Powertrain Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "TCM": {"name": "Transmission Module", "tx": "0x7E1", "rx": "0x7E9"},
+      "BCM": {"name": "Body Control Module (BCMii)", "tx": "0x726", "rx": "0x72E"},
+      "SRS": {"name": "Restraints Control Module (RCM)", "tx": "0x7E5", "rx": "0x7EF"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 36, "teeth_missing": 1, "normal_amplitude_v": 4.0}
+    }
+  },
+  "general_motors": {
+    "name": "General Motors (Chevrolet, Buick, GMC, Cadillac)",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Engine Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "TCM": {"name": "Transmission Control Module", "tx": "0x7E1", "rx": "0x7E9"},
+      "BCM": {"name": "Body Control Module", "tx": "0x7E4", "rx": "0x7EC"},
+      "SRS": {"name": "Sensing & Diagnostic Module (SDM)", "tx": "0x7E5", "rx": "0x7EF"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 4.5}
+    }
+  },
+  "renault_dacia": {
+    "name": "Renault & Dacia",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Injection Moteur", "tx": "0x7E0", "rx": "0x7E8"},
+      "UCH": {"name": "Unité Centrale Habitacle", "tx": "0x743", "rx": "0x763"},
+      "ABS": {"name": "Antiblocage des Roues", "tx": "0x7E2", "rx": "0x7EA"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 4.2}
+    }
+  },
+  "hyundai_kia": {
+    "name": "Hyundai & Kia",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Engine Control Unit", "tx": "0x7E0", "rx": "0x7E8"},
+      "TCU": {"name": "Transmission Control Unit", "tx": "0x7E1", "rx": "0x7E9"},
+      "ESC": {"name": "Electronic Stability Control", "tx": "0x7D1", "rx": "0x7D9"},
+      "SRS": {"name": "Supplemental Restraint System", "tx": "0x7E5", "rx": "0x7EF"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 4.5}
+    }
+  },
+  "honda_acura": {
+    "name": "Honda & Acura",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "PGM-FI Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "VSA": {"name": "Vehicle Stability Assist", "tx": "0x7E2", "rx": "0x7EA"},
+      "MICU": {"name": "Multiplex Integrated Unit", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "bmw_mini": {
+    "name": "BMW Group & Mini",
+    "can_speed_kbps": 500,
+    "modules": {
+      "DME": {"name": "Digital Motor Electronics", "tx": "0x6F1", "rx": "0x7E8"},
+      "EGS": {"name": "Elektronische Getriebesteuerung", "tx": "0x7E1", "rx": "0x7E9"},
+      "DSC": {"name": "Dynamic Stability Control", "tx": "0x7E2", "rx": "0x7EA"},
+      "BDC": {"name": "Body Domain Controller", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "mercedes_benz": {
+    "name": "Mercedes-Benz",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ME": {"name": "Motor Electronics (ME/CDI)", "tx": "0x7E0", "rx": "0x7E8"},
+      "ETC": {"name": "Electronic Transmission Control", "tx": "0x7E1", "rx": "0x7E9"},
+      "ESP": {"name": "Electronic Stability Program", "tx": "0x7E2", "rx": "0x7EA"},
+      "EIS": {"name": "Electronic Ignition Switch (EZS)", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "nissan_infiniti": {
+    "name": "Nissan & Infiniti",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Engine Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "TCM": {"name": "CVT / Transmission Control", "tx": "0x7E1", "rx": "0x7E9"},
+      "BCM": {"name": "Body Control Module", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 36, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "mitsubishi": {
+    "name": "Mitsubishi Motors",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Engine Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "ETACS": {"name": "Electronic Total Automobile Control", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 36, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "suzuki": {
+    "name": "Suzuki Motor Corporation",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Engine Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "BCM": {"name": "Body Control Module", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "reluctive", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 4.0}
+    }
+  },
+  "mazda": {
+    "name": "Mazda Motor Corporation",
+    "can_speed_kbps": 500,
+    "modules": {
+      "PCM": {"name": "Powertrain Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "DSC": {"name": "Dynamic Stability Control", "tx": "0x7E2", "rx": "0x7EA"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 36, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "subaru": {
+    "name": "Subaru Corporation",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Engine Boxer Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "VDCCM": {"name": "Vehicle Dynamics Module", "tx": "0x7E2", "rx": "0x7EA"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 36, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "volvo": {
+    "name": "Volvo Cars",
+    "can_speed_kbps": 500,
+    "modules": {
+      "ECM": {"name": "Engine Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "CEM": {"name": "Central Electronic Module", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "jlr": {
+    "name": "Jaguar & Land Rover",
+    "can_speed_kbps": 500,
+    "modules": {
+      "PCM": {"name": "Powertrain Control Module", "tx": "0x7E0", "rx": "0x7E8"},
+      "GWM": {"name": "Gateway Module", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "hall", "teeth_total": 60, "teeth_missing": 2, "normal_amplitude_v": 5.0}
+    }
+  },
+  "byd": {
+    "name": "BYD (Build Your Dreams)",
+    "can_speed_kbps": 500,
+    "modules": {
+      "VCU": {"name": "Vehicle Control Unit", "tx": "0x7E0", "rx": "0x7E8"},
+      "BMS": {"name": "Battery Management System", "tx": "0x7E2", "rx": "0x7EA"},
+      "MCU": {"name": "Motor Controller Unit", "tx": "0x7E3", "rx": "0x7EB"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "resolver", "carrier_freq_hz": 10000, "normal_amplitude_v": 3.3}
+    }
+  },
+  "tesla": {
+    "name": "Tesla Inc.",
+    "can_speed_kbps": 500,
+    "modules": {
+      "DI_R": {"name": "Drive Inverter Rear", "tx": "0x118", "rx": "0x128"},
+      "BMS": {"name": "Battery Management", "tx": "0x132", "rx": "0x142"},
+      "VCFRONT": {"name": "Vehicle Controller Front", "tx": "0x7E4", "rx": "0x7EC"}
+    },
+    "scope_presets": {
+      "ckp": {"type": "resolver", "carrier_freq_hz": 10000, "normal_amplitude_v": 3.3}
+    }
+  }
+}

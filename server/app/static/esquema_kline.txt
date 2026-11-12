@@ -1,0 +1,76 @@
+# AgentCarDiag — Arquitetura de Linha K & Multiplexador OBD2
+
+Este documento descreve a integração física e lógica para suporte completo a:
+1. **CAN Bus (ISO 15765-4 / 500kbps)** — Pinos OBD 6 (CAN-H) e 14 (CAN-L)
+2. **Linha K (ISO 9141-2 / ISO 14230-4 KWP2000 / 10400bps)**
+3. **Multiplexador de Pinos OBD2 (CD4051 / 74HC4051)** para leitura multissistema (ECU, ABS, Airbag, Câmbio)
+
+---
+
+## 1. Módulo CAN (SN65HVD230)
+- **ESP32 GPIO 4 (CTX)** -> SN65HVD230 D (TX)
+- **ESP32 GPIO 5 (CRX)** -> SN65HVD230 R (RX)
+- **VCC:** 3.3V
+- **GND:** GND comum
+- **Saídas:**
+  - CANH -> Pino 6 do conector OBD-II
+  - CANL -> Pino 14 do conector OBD-II
+
+---
+
+## 2. Transceiver Linha K (LM339 ou L9637D)
+A Linha K automotiva opera em 12V diferencial bidirecional em fio único com pull-up de 510Ω para +12V.
+
+### Opção A: Cabo VAG KKL 409.1 Hackeado (Placa Azul/Verde com LM339)
+- Remover o chip USB CH340C.
+- Conectar o pino TX do ESP32 (GPIO 17) à entrada do driver do LM339.
+- Conectar a saída do comparador LM339 ao pino RX do ESP32 (GPIO 16) com divisor ou resistor limitador de 10kΩ.
+
+### Opção B: Circuito Dedicado com L9637D (Transceiver ISO-9141)
+- **Pino 1 (RX):** GPIO 16 do ESP32
+- **Pino 2 (LO):** Não conectado
+- **Pino 3 (VCC):** 3.3V do ESP32
+- **Pino 4 (TX):** GPIO 17 do ESP32
+- **Pino 5 (GND):** GND comum (OBD Pinos 4 e 5)
+- **Pino 6 (K):** Entrada comum COM do Multiplexador CD4051 (ou direto no Pino 7)
+- **Pino 7 (VS):** +12V da bateria (Pino 16 do OBD-II)
+- **Pino 8 (NC):** Não conectado
+
+---
+
+## 3. Multiplexador Automotivo OBD2 (CD4051B / 74HC4051)
+O chip CD4051 é um multiplexador analógico bidirecional de 8 canais capaz de suportar sinais de 12V (quando alimentado com VDD=12V, VEE=GND e level shifter nos pinos de seleção, ou usando relés Reed / 74HC4051 na linha de 3.3V antes do transceiver).
+
+### Controle via ESP32:
+- **GPIO 18:** MUX S0 (Bit 0)
+- **GPIO 19:** MUX S1 (Bit 1)
+- **GPIO 21:** MUX S2 (Bit 2)
+- **GPIO 22:** MUX EN (Ativo em nível LOW — manter ligado ao GND se fixo)
+
+### Tabela de Roteamento de Módulos Veiculares:
+
+| Canal MUX | S2 | S1 | S0 | Pino OBD2 | Módulo Veicular Atendido | Exemplos de Montadoras |
+|:---------:|:--:|:--:|:--:|:---------:|:-------------------------|:-----------------------|
+| **CH 0**  | 0  | 0  | 0  | **Pino 7** | Motor / Injeção Eletrônica (ECU) | Todas (Padrão OBD-II) |
+| **CH 1**  | 0  | 0  | 1  | **Pino 1** | Freios ABS / Direção Elétrica | Fiat, Alfa Romeo, GM SW-CAN |
+| **CH 2**  | 0  | 1  | 0  | **Pino 3** | Airbag / SRS | Fiat, Alfa Romeo, PSA |
+| **CH 3**  | 0  | 1  | 1  | **Pino 8** | Climatização / Conforto / Linha B | Fiat, BMW K-Line 2 |
+| **CH 4**  | 1  | 0  | 0  | **Pino 9** | Carroceria / BCM / Tacógrafo | GM, Toyota, Nissan |
+| **CH 5**  | 1  | 0  | 1  | **Pino 11**| Câmbio Automático / Transmissão | Ford, Mazda, Chrysler |
+| **CH 6**  | 1  | 1  | 0  | **Pino 12**| ABS Secundário / Painel | Renault, GM, Opel |
+| **CH 7**  | 1  | 1  | 1  | **Pino 13**| Airbag Secundário / Chassi | Renault, Fiat |
+
+---
+
+## 4. Protocolo de Comunicação de Software
+
+O ESP32 escuta os comandos WebSocket enviados pelo servidor e painel web:
+
+1. **Troca de Protocolo:**
+   `{"cmd": "set_protocol", "proto": "kline"}` ou `{"cmd": "set_protocol", "proto": "can"}`
+
+2. **Chaveamento de Pino/Módulo OBD2:**
+   `{"cmd": "set_module_pin", "pin": 1, "module": "ABS"}`
+
+3. **Envio de Requisição OBD:**
+   `{"cmd": "obd_send", "query": "010C"}` -> Retorna `{"query": "010C", "raw": "41 0C 1A F8", "proto": "kline", "pin": 7, "module": "ECU"}`

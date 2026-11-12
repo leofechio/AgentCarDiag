@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentCarDiag — Painel de Controle de Fábrica</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    :root {
+      --admin-gold: #ffb300;
+      --admin-purple: #9c27b0;
+    }
+    .admin-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px 24px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .admin-title-area {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .admin-logo {
+      font-size: 32px;
+      background: rgba(255, 179, 0, 0.15);
+      border: 1px solid rgba(255, 179, 0, 0.4);
+      padding: 8px 12px;
+      border-radius: 10px;
+    }
+    .admin-badge {
+      background: linear-gradient(135deg, #ff9800, #f44336);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .kpi-card .kpi-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .kpi-card .kpi-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono, monospace);
+    }
+    .admin-nav-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .admin-tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .admin-tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255,255,255,0.03);
+    }
+    .admin-tab-btn.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+      background: rgba(0, 212, 255, 0.05);
+    }
+    .admin-panel {
+      display: none;
+    }
+    .admin-panel.active {
+      display: block;
+    }
+    .card-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .table-container {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+    }
+    table.admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    table.admin-table th {
+      background: rgba(255,255,255,0.04);
+      padding: 12px 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    table.admin-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      color: var(--text-main);
+    }
+    table.admin-table tr:hover {
+      background: rgba(255,255,255,0.02);
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .status-in-stock {
+      background: rgba(0, 230, 118, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(0, 230, 118, 0.3);
+    }
+    .status-active {
+      background: rgba(0, 212, 255, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+    }
+    .status-blocked {
+      background: rgba(255, 82, 82, 0.15);
+      color: var(--accent-red);
+      border: 1px solid rgba(255, 82, 82, 0.3);
+    }
+    .password-pill {
+      font-family: var(--font-mono, monospace);
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border-subtle);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #ffb300;
+      font-size: 12px;
+    }
+    /* Modals */
+    .admin-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .admin-modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      max-width: 550px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .form-group input, .form-group select {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 9px 12px;
+      color: var(--text-main);
+      font-size: 13px;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--accent-cyan);
+      outline: none;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* ─── Regras de Alto Contraste e Visibilidade para Botões do Admin ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: inherit;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: rgba(0, 212, 255, 0.16) !important;
+      border: 1px solid rgba(0, 212, 255, 0.5) !important;
+      color: #00e5ff !important;
+    }
+    .btn-primary:hover {
+      background: rgba(0, 212, 255, 0.3) !important;
+      border-color: #00e5ff !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+    }
+
+    .btn-secondary {
+      background: #1c2230 !important;
+      border: 1px solid #333d52 !important;
+      color: #e2e8f0 !important;
+    }
+    .btn-secondary:hover {
+      background: #252e42 !important;
+      border-color: #4b5875 !important;
+      color: #ffffff !important;
+    }
+
+    /* Botões específicos com cor semântica preservando visibilidade */
+    .btn-action-gold {
+      background: rgba(255, 179, 0, 0.12) !important;
+      border: 1px solid rgba(255, 179, 0, 0.4) !important;
+      color: #ffca28 !important;
+    }
+    .btn-action-gold:hover {
+      background: rgba(255, 179, 0, 0.25) !important;
+      border-color: #ffb300 !important;
+      color: #ffffff !important;
+    }
+
+    .btn-action-red {
+      background: rgba(255, 82, 82, 0.12) !important;
+      border: 1px solid rgba(255, 82, 82, 0.4) !important;
+      color: #ff5252 !important;
+    }
+    .btn-action-red:hover {
+      background: rgba(255, 82, 82, 0.25) !important;
+      border-color: #ff1744 !important;
+      color: #ffffff !important;
+    }
+
+    .btn-action-green {
+      background: rgba(0, 230, 118, 0.12) !important;
+      border: 1px solid rgba(0, 230, 118, 0.4) !important;
+      color: #00e676 !important;
+    }
+    .btn-action-green:hover {
+      background: rgba(0, 230, 118, 0.25) !important;
+      border-color: #00e676 !important;
+      color: #ffffff !important;
+    }
+
+    /* ─── Responsividade Admin (Tablets e Celulares) ─── */
+    @media (max-width: 768px) {
+      .admin-container {
+        padding: 10px;
+      }
+      .admin-header {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 14px 16px;
+        gap: 12px;
+      }
+      .admin-header > div:last-child {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+      }
+      .admin-header > div:last-child .btn {
+        flex: 1;
+        font-size: 11px !important;
+        padding: 8px !important;
+      }
+      .kpi-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .admin-nav-tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+      }
+      .admin-tab-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+      .card-box {
+        padding: 14px;
+      }
+      .card-header-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .card-header-row .btn {
+        width: 100%;
+      }
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body style="background: var(--bg-base); color: var(--text-main); font-family: var(--font-main, sans-serif);">
+
+  <div class="admin-container">
+    
+    <!-- ─── HEADER ──────────────────────────────────────────────────────── -->
+    <header class="admin-header">
+      <div class="admin-title-area">
+        <div class="admin-logo">🏭</div>
+        <div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h1 style="font-size:20px; font-weight:800; margin:0;">AgentCarDiag — Painel de Controle da Fábrica</h1>
+            <span class="admin-badge">Admin Master</span>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">
+            Gestão Multi-Tenant de Clientes, Contas de Acesso e Linha de Produção de Hardware
+          </p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <a href="/" class="btn btn-secondary" style="text-decoration:none; display:flex; align-items:center; gap:6px; font-size:12px; padding:8px 14px;">
+          🚗 Acessar Scanner do Cliente ➔
+        </a>
+        <div class="status-pill ws-status" id="admin-server-status">
+          <div class="status-dot online"></div>
+          <span>Servidor: Online</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ─── KPIS ────────────────────────────────────────────────────────── -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <span class="kpi-label">Oficinas / Clientes Cadastrados</span>
+        <span class="kpi-val" id="kpi-total-workshops">0</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Equipamentos em Estoque Fabril</span>
+        <span class="kpi-val" id="kpi-stock-devices" style="color:var(--accent-green);">0</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Equipamentos Ativos em Clientes</span>
+        <span class="kpi-val" id="kpi-active-devices" style="color:var(--accent-cyan);">0</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Total Fabricado</span>
+        <span class="kpi-val" id="kpi-total-manufactured" style="color:var(--admin-gold);">0</span>
+      </div>
+    </div>
+
+    <!-- ─── TABS DE NAVEGAÇÃO ───────────────────────────────────────────── -->
+    <nav class="admin-nav-tabs">
+      <button class="admin-tab-btn active" onclick="switchAdminTab('workshops', this)">
+        🏢 Clientes &amp; Oficinas (Logins e Senhas)
+      </button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('production', this)">
+        ⚡ Linha de Produção &amp; Controle de Seriais
+      </button>
+      <button class="admin-tab-btn" onclick="switchAdminTab('hardware-all', this)">
+        📦 Todos os Aparelhos Fabricados
+      </button>
+    </nav>
+
+    <!-- ─── PAINEL 1: GESTÃO DE CLIENTES / OFICINAS ────────────────────── -->
+    <section class="admin-panel active" id="panel-workshops">
+      <div class="card-box">
+        <div class="card-header-row">
+          <div>
+            <h2 style="font-size:16px; margin:0; font-weight:700;">🏢 Clientes e Oficinas Mecânicas Cadastradas</h2>
+            <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">
+              Cadastre novos clientes de teste (10 pilotos iniciais), defina o usuário e a senha para eles entrarem no site.
+            </p>
+          </div>
+          <button class="btn btn-primary" onclick="openNewWorkshopModal()" style="display:flex; align-items:center; gap:6px; font-weight:bold; padding:8px 16px;">
+            <span>➕</span> Cadastrar Novo Cliente / Oficina
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Oficina / Cliente</th>
+                <th>Responsável</th>
+                <th>Contato</th>
+                <th>Usuário (Login)</th>
+                <th>Senha de Acesso</th>
+                <th>Aparelhos Ativos</th>
+                <th>Status</th>
+                <th style="text-align:right;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="workshops-table-body">
+              <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">Carregando oficinas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── PAINEL 2: LINHA DE PRODUÇÃO & FABRICAÇÃO ──────────────────── -->
+    <section class="admin-panel" id="panel-production">
+      <div class="card-box" style="background: linear-gradient(135deg, rgba(0, 212, 255, 0.04), rgba(255, 179, 0, 0.04));">
+        <h2 style="font-size:16px; margin:0 0 14px 0; font-weight:700;">⚡ Gerador da Linha de Produção (Fábrica)</h2>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">
+          Gere números de série autênticos gravados no banco de dados central. O formato adotado é <strong>1 letra indicadora + 4 dígitos sequenciais a partir de 2000</strong>: <code>s2001</code> (Scanner), <code>a2001</code> (AguiaCar) e <code>o2001</code> (Osciloscópio).
+        </p>
+        
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; align-items:flex-end;">
+          <div class="form-group" style="margin:0;">
+            <label>Tipo de Equipamento</label>
+            <select id="prod-device-type">
+              <option value="SCANNER_CAN">🚗 AgentCar Scanner Pro (TWAI + K-Line)</option>
+              <option value="AGUIACAR_4G">🦅 AguiaCar 4G Telematics Fleet</option>
+              <option value="OSCILOSCOPIO">📡 AgentCar Osciloscópio Dual-CH</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>Código do Lote</label>
+            <input type="text" id="prod-batch-code" value="LOTE-2026-FIBRA01" placeholder="Ex: LOTE-2026-02">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>Quantidade a Fabricar</label>
+            <select id="prod-quantity">
+              <option value="1">1 Unidade Avulsa</option>
+              <option value="5" selected>5 Unidades (Lote Piloto)</option>
+              <option value="10">10 Unidades (10 Oficinas)</option>
+              <option value="25">25 Unidades (Escala)</option>
+            </select>
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="executeProduction()" style="width:100%; padding:10px 14px; font-weight:bold; height:40px; display:flex; align-items:center; justify-content:center; gap:8px;">
+              ⚡ Fabricar Lote &amp; Gravar no Estoque
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-box">
+        <div class="card-header-row">
+          <div>
+            <h2 style="font-size:16px; margin:0; font-weight:700;">📦 Estoque Fabril (Equipamentos Disponíveis para Venda/Ativação)</h2>
+            <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">
+              Equipamentos com número de série registrado que ainda não foram reivindicados por nenhuma oficina.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="loadAdminData()" style="padding:6px 12px; font-size:12px;">
+            🔄 Atualizar Estoque
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Número de Série</th>
+                <th>Tipo</th>
+                <th>Modelo</th>
+                <th>Lote Fabril</th>
+                <th>Data de Fabricação</th>
+                <th>Status</th>
+                <th style="text-align:right;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="stock-table-body">
+              <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">Carregando estoque...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── PAINEL 3: TODOS OS APARELHOS FABRICADOS ────────────────────── -->
+    <section class="admin-panel" id="panel-hardware-all">
+      <div class="card-box">
+        <div class="card-header-row">
+          <div>
+            <h2 style="font-size:16px; margin:0; font-weight:700;">🌐 Visão Geral de Todo o Parque de Hardware</h2>
+            <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">
+              Todos os aparelhos já produzidos pela fábrica e onde eles estão alocados.
+            </p>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <input type="text" id="filter-all-devices" onkeyup="filterDevicesTable()" placeholder="🔍 Filtrar por serial ou oficina..." style="background:rgba(0,0,0,0.3); border:1px solid var(--border-subtle); border-radius:6px; padding:6px 10px; font-size:12px; color:var(--text-main); width:240px;">
+            <button class="btn btn-secondary" onclick="loadAllDevices()" style="padding:6px 12px; font-size:12px;">🔄 Atualizar</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="admin-table" id="all-devices-table">
+            <thead>
+              <tr>
+                <th>Número de Série</th>
+                <th>Conexão Ao Vivo</th>
+                <th>Firmware</th>
+                <th>Tipo</th>
+                <th>Modelo</th>
+                <th>Lote</th>
+                <th>Oficina Alocada</th>
+                <th>Status</th>
+                <th>Data Ativação</th>
+                <th style="text-align:right;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="all-devices-table-body">
+              <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">Carregando aparelhos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ─── MODAL: CADASTRAR NOVA OFICINA ───────────────────────────────── -->
+  <div class="admin-modal-backdrop" id="modal-new-workshop">
+    <div class="admin-modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-subtle); padding-bottom:12px;">
+        <h3 style="margin:0; font-size:16px; font-weight:700;">➕ Cadastrar Nova Oficina / Cliente</h3>
+        <button onclick="closeModal('modal-new-workshop')" style="background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer;">✕</button>
+      </div>
+
+      <form id="form-new-workshop" onsubmit="handleCreateWorkshop(event)">
+        <div class="form-group">
+          <label>Nome Fantasia da Oficina *</label>
+          <input type="text" id="w-name" required placeholder="Ex: Auto Mecânica Estrela" oninput="autoSuggestLogin(this.value)">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>ID / Código do Sistema *</label>
+            <input type="text" id="w-id" required placeholder="estrela-auto">
+          </div>
+          <div class="form-group">
+            <label>Nome do Responsável / Mecânico</label>
+            <input type="text" id="w-owner" placeholder="Ex: Carlos Rodrigues">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Telefone / WhatsApp</label>
+            <input type="text" id="w-phone" placeholder="(11) 98765-4321">
+          </div>
+          <div class="form-group">
+            <label>E-mail de Contato</label>
+            <input type="email" id="w-email" placeholder="contato@estrela.com.br">
+          </div>
+        </div>
+
+        <div style="background:rgba(0, 212, 255, 0.05); border:1px solid rgba(0, 212, 255, 0.2); border-radius:8px; padding:12px; margin-bottom:16px;">
+          <div style="font-size:12px; font-weight:bold; color:var(--accent-cyan); margin-bottom:8px;">
+            🔑 Credenciais de Login para o Cliente Acessar o Site:
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="margin:0;">
+              <label>Nome de Usuário (Login) *</label>
+              <input type="text" id="w-username" required placeholder="estrela">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Senha de Acesso *</label>
+              <input type="text" id="w-password" required value="123456" placeholder="Senha do cliente">
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-new-workshop')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="font-weight:bold;">Cadastrar Oficina &amp; Liberar Acesso</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── MODAL: VINCULAR APARELHO DIRETAMENTE ────────────────────────── -->
+  <div class="admin-modal-backdrop" id="modal-assign-device">
+    <div class="admin-modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-subtle); padding-bottom:12px;">
+        <h3 style="margin:0; font-size:16px; font-weight:700;">🔗 Vincular Equipamento à Oficina</h3>
+        <button onclick="closeModal('modal-assign-device')" style="background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer;">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label>Número de Série Selecionado</label>
+        <input type="text" id="assign-serial" readonly style="color:var(--accent-cyan); font-weight:bold; font-family:monospace;">
+      </div>
+
+      <div class="form-group">
+        <label>Selecione a Oficina de Destino</label>
+        <select id="assign-workshop-select">
+          <!-- Popula dinamicamente -->
+        </select>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-assign-device')">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="confirmAssignDevice()" style="font-weight:bold;">Confirmar Vinculação</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MODAL: ALTERAR SENHA DA OFICINA ─────────────────────────────── -->
+  <div class="admin-modal-backdrop" id="modal-reset-password">
+    <div class="admin-modal">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border-subtle); padding-bottom:12px;">
+        <h3 style="margin:0; font-size:16px; font-weight:700;">🔑 Redefinir Senha do Cliente</h3>
+        <button onclick="closeModal('modal-reset-password')" style="background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer;">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label>Oficina / Usuário</label>
+        <input type="text" id="reset-workshop-info" readonly style="color:var(--accent-cyan); font-weight:bold;">
+        <input type="hidden" id="reset-workshop-id">
+      </div>
+
+      <div class="form-group">
+        <label>Nova Senha de Acesso</label>
+        <input type="text" id="reset-new-password" placeholder="Digite a nova senha">
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-reset-password')">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="confirmResetPassword()" style="font-weight:bold;">Salvar Nova Senha</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── JAVASCRIPT DO PAINEL ADMIN ──────────────────────────────────── -->
+  <script>
+    let globalWorkshops = [];
+    let globalStock = [];
+    let globalAllDevices = [];
+
+    let adminDevicesWs = null;
+    let liveDevicesMap = {};
+
+    function connectAdminTelemetry() {
+      const loc = window.location;
+      const wsProto = loc.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${wsProto}//${loc.host}/ws/telemetry`;
+      adminDevicesWs = new WebSocket(wsUrl);
+
+      adminDevicesWs.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "hardware_status" && msg.devices) {
+            liveDevicesMap = msg.devices;
+            updateAdminLiveStatus();
+          }
+        } catch (_) {}
+      };
+
+      adminDevicesWs.onclose = () => {
+        setTimeout(connectAdminTelemetry, 3000);
+      };
+    }
+
+    function updateAdminLiveStatus() {
+      document.querySelectorAll("[data-device-serial]").forEach(cell => {
+        const serial = cell.getAttribute("data-device-serial");
+        const devInfo = liveDevicesMap[serial];
+        const isOnline = devInfo && devInfo.connected;
+        const pingMs = isOnline ? Math.round(devInfo.ping_ms || 0) : null;
+
+        cell.innerHTML = `
+          <span style="display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:bold; ${isOnline ? 'background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);' : 'background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.2);'}">
+            <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${isOnline ? '#10b981' : '#ef4444'};"></span>
+            ${isOnline ? `Online (${pingMs}ms)` : 'Offline'}
+          </span>
+        `;
+
+        const fwCell = document.querySelector(`[data-device-fw="${serial}"]`);
+        if (fwCell && devInfo && devInfo.fw_version) {
+          fwCell.innerHTML = `
+            <span style="background:rgba(0,212,255,0.1); color:var(--accent-cyan); padding:2px 8px; border-radius:4px; font-family:monospace; font-weight:bold; font-size:11px;">
+              ${devInfo.fw_version}
+            </span>
+          `;
+        }
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      loadAdminData();
+      connectAdminTelemetry();
+    });
+
+    function switchAdminTab(panelId, btn) {
+      document.querySelectorAll(".admin-tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".admin-panel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(`panel-${panelId}`).classList.add("active");
+
+      if (panelId === 'hardware-all') {
+        loadAllDevices();
+      }
+    }
+
+    async function loadAdminData() {
+      await Promise.all([loadWorkshops(), loadStock(), loadAllDevices()]);
+      updateKPIs();
+    }
+
+    function updateKPIs() {
+      document.getElementById("kpi-total-workshops").textContent = globalWorkshops.length;
+      document.getElementById("kpi-stock-devices").textContent = globalStock.length;
+      
+      const activeCount = globalWorkshops.reduce((acc, w) => acc + (w.device_count || 0), 0);
+      document.getElementById("kpi-active-devices").textContent = activeCount;
+      document.getElementById("kpi-total-manufactured").textContent = activeCount + globalStock.length;
+    }
+
+    // 1. Carrega Oficinas
+    async function loadWorkshops() {
+      try {
+        const res = await fetch("/api/workshops");
+        if (!res.ok) return;
+        globalWorkshops = await res.json();
+
+        const tbody = document.getElementById("workshops-table-body");
+        tbody.innerHTML = "";
+
+        if (globalWorkshops.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px;">Nenhuma oficina cadastrada.</td></tr>`;
+          return;
+        }
+
+        globalWorkshops.forEach(w => {
+          const tr = document.createElement("tr");
+          const isBlocked = w.status === 'BLOCKED';
+          
+          tr.innerHTML = `
+            <td>
+              <strong style="color:var(--text-main); font-size:14px;">${w.name}</strong><br>
+              <span style="font-size:11px; color:var(--text-muted); font-family:monospace;">ID: ${w.id}</span>
+            </td>
+            <td>${w.owner_name || '—'}</td>
+            <td>
+              ${w.contact_phone ? `<div>📞 ${w.contact_phone}</div>` : ''}
+              ${w.contact_email ? `<div style="font-size:11px; color:var(--text-muted);">✉️ ${w.contact_email}</div>` : ''}
+              ${!w.contact_phone && !w.contact_email ? '—' : ''}
+            </td>
+            <td>
+              <span style="color:var(--accent-cyan); font-family:monospace; font-weight:bold;">${w.username || w.id}</span>
+            </td>
+            <td>
+              <span class="password-pill" id="pw-field-${w.id}">••••••</span>
+              <button onclick="togglePasswordVisibility('${w.id}', '${w.password_hash || '123456'}')" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; margin-left:4px;" title="Ver/Ocultar Senha">👁️</button>
+            </td>
+            <td>
+              <span style="color:${w.device_count > 0 ? 'var(--accent-green)' : 'var(--text-muted)'}; font-weight:bold;">
+                ⚡ ${w.device_count || 0} Aparelho(s)
+              </span>
+            </td>
+            <td>
+              <span class="status-badge ${isBlocked ? 'status-blocked' : 'status-active'}">
+                ${isBlocked ? 'BLOQUEADA' : 'ATIVA'}
+              </span>
+            </td>
+            <td style="text-align:right;">
+              <div style="display:flex; justify-content:flex-end; gap:6px;">
+                <button class="btn btn-secondary" onclick="openResetPasswordModal('${w.id}', '${w.name}', '${w.username || w.id}')" style="padding:4px 9px; font-size:11px;" title="Mudar Senha">
+                  🔑 Senha
+                </button>
+                <button class="btn ${isBlocked ? 'btn-action-green' : 'btn-action-gold'}" onclick="toggleWorkshopStatus('${w.id}', '${w.status}')" style="padding:4px 9px; font-size:11px;" title="${isBlocked ? 'Desbloquear' : 'Bloquear'}">
+                  ${isBlocked ? '✓ Reativar' : '⊘ Bloquear'}
+                </button>
+                <button class="btn btn-action-red" onclick="deleteWorkshop('${w.id}', '${w.name}')" style="padding:4px 9px; font-size:11px;" title="Excluir Oficina">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Atualiza selects de vinculação
+        populateWorkshopSelects();
+      } catch (e) {
+        console.error("Erro ao carregar oficinas:", e);
+      }
+    }
+
+    function togglePasswordVisibility(workshopId, realPassword) {
+      const el = document.getElementById(`pw-field-${workshopId}`);
+      if (!el) return;
+      if (el.textContent === "••••••") {
+        el.textContent = realPassword;
+      } else {
+        el.textContent = "••••••";
+      }
+    }
+
+    function populateWorkshopSelects() {
+      const sel = document.getElementById("assign-workshop-select");
+      if (!sel) return;
+      sel.innerHTML = "";
+      globalWorkshops.forEach(w => {
+        const opt = document.createElement("option");
+        opt.value = w.id;
+        opt.textContent = `${w.name} (${w.owner_name || w.id})`;
+        sel.appendChild(opt);
+      });
+    }
+
+    // 2. Carrega Estoque Fabril
+    async function loadStock() {
+      try {
+        const res = await fetch("/api/workshops/stock/devices");
+        if (!res.ok) return;
+        globalStock = await res.json();
+
+        const tbody = document.getElementById("stock-table-body");
+        tbody.innerHTML = "";
+
+        if (globalStock.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">Estoque vazio. Gere novos seriais na Linha de Produção acima!</td></tr>`;
+          return;
+        }
+
+        globalStock.forEach(d => {
+          const tr = document.createElement("tr");
+          let icon = "🚗";
+          if (d.device_type === "AGUIACAR_4G") icon = "🦅";
+          if (d.device_type === "OSCILOSCOPIO") icon = "📡";
+
+          tr.innerHTML = `
+            <td style="font-family:monospace; font-weight:bold; color:var(--accent-cyan); font-size:13px;">${d.serial_number}</td>
+            <td><span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:4px; font-size:11px;">${icon} ${d.device_type}</span></td>
+            <td style="color:var(--text-secondary);">${d.model_name}</td>
+            <td style="font-size:11px; color:var(--text-muted);">${d.batch_code}</td>
+            <td style="font-size:11px; color:var(--text-muted);">${(d.created_at || '').substring(0,10)}</td>
+            <td><span class="status-badge status-in-stock">EM ESTOQUE</span></td>
+            <td style="text-align:right;">
+              <div style="display:flex; justify-content:flex-end; gap:6px;">
+                <button class="btn btn-primary" onclick="openAssignModal('${d.serial_number}')" style="padding:4px 10px; font-size:11px; font-weight:600;">
+                  🔗 Vincular à Oficina
+                </button>
+                <button class="btn btn-action-red" onclick="deleteSerial('${d.serial_number}')" style="padding:4px 9px; font-size:11px;" title="Excluir Serial">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.error("Erro ao carregar estoque:", e);
+      }
+    }
+
+    // 3. Carrega Todos os Aparelhos (Geral)
+    async function loadAllDevices() {
+      try {
+        const res = await fetch("/api/workshops/all-devices");
+        if (!res.ok) return;
+        globalAllDevices = await res.json();
+        renderAllDevices(globalAllDevices);
+      } catch (e) {
+        console.error("Erro ao carregar todos aparelhos:", e);
+      }
+    }
+
+    function renderAllDevices(devices) {
+      const tbody = document.getElementById("all-devices-table-body");
+      tbody.innerHTML = "";
+
+      if (devices.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px;">Nenhum equipamento encontrado.</td></tr>`;
+        return;
+      }
+
+      devices.forEach(d => {
+        const tr = document.createElement("tr");
+        const isStock = d.status === 'IN_STOCK' || !d.workshop_id;
+
+        const cleanSerial = (d.serial_number || '').trim().toLowerCase();
+        const devInfo = liveDevicesMap[cleanSerial];
+        const isOnline = devInfo && devInfo.connected;
+        const pingMs = isOnline ? Math.round(devInfo.ping_ms || 0) : null;
+        const devFw = (devInfo && devInfo.fw_version) ? devInfo.fw_version : (d.fw_version || 'v2.5.2');
+
+        tr.innerHTML = `
+          <td style="font-family:monospace; font-weight:bold; color:var(--accent-cyan); font-size:13px;">${d.serial_number}</td>
+          <td data-device-serial="${cleanSerial}">
+            <span style="display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:bold; ${isOnline ? 'background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);' : 'background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.2);'}">
+              <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${isOnline ? '#10b981' : '#ef4444'};"></span>
+              ${isOnline ? `Online (${pingMs}ms)` : 'Offline'}
+            </span>
+          </td>
+          <td data-device-fw="${cleanSerial}">
+            <span style="background:rgba(0,212,255,0.1); color:var(--accent-cyan); padding:2px 8px; border-radius:4px; font-family:monospace; font-weight:bold; font-size:11px;">
+              ${devFw}
+            </span>
+          </td>
+          <td><span style="font-size:11px;">${d.device_type}</span></td>
+          <td style="color:var(--text-secondary);">${d.model_name}</td>
+          <td style="font-size:11px; color:var(--text-muted);">${d.batch_code}</td>
+          <td>
+            ${isStock ? '<span style="color:var(--text-muted); font-style:italic;">Disponível (Estoque Fabril)</span>' : `<strong style="color:var(--text-main);">🏢 ${d.workshop_name || d.workshop_id}</strong>`}
+          </td>
+          <td>
+            <span class="status-badge ${isStock ? 'status-in-stock' : 'status-active'}">
+              ${isStock ? 'EM ESTOQUE' : 'VINCULADO / ATIVO'}
+            </span>
+          </td>
+          <td style="font-size:11px; color:var(--text-muted);">${d.activated_at ? d.activated_at.substring(0, 10) : '—'}</td>
+          <td style="text-align:right;">
+            ${!isStock ? `
+              <button class="btn btn-action-gold" onclick="unlinkDeviceAdmin('${d.serial_number}')" style="padding:4px 10px; font-size:11px;" title="Desvincular e retornar ao estoque">
+                Desvincular
+              </button>
+            ` : `
+              <button class="btn btn-primary" onclick="openAssignModal('${d.serial_number}')" style="padding:4px 10px; font-size:11px;">
+                Vincular
+              </button>
+            `}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filterDevicesTable() {
+      const q = document.getElementById("filter-all-devices").value.toLowerCase();
+      const filtered = globalAllDevices.filter(d => 
+        d.serial_number.toLowerCase().includes(q) ||
+        (d.workshop_name && d.workshop_name.toLowerCase().includes(q)) ||
+        (d.workshop_id && d.workshop_id.toLowerCase().includes(q)) ||
+        d.device_type.toLowerCase().includes(q)
+      );
+      renderAllDevices(filtered);
+    }
+
+    // ─── AÇÕES DA FÁBRICA / ADMIN ──────────────────────────────────────────
+
+    // Executa Produção de Seriais
+    async function executeProduction() {
+      const device_type = document.getElementById("prod-device-type").value;
+      const batch_code = document.getElementById("prod-batch-code").value.trim() || "LOTE-2026-01";
+      const quantity = parseInt(document.getElementById("prod-quantity").value, 10) || 1;
+
+      let model_name = "AgentCar Scanner Pro (TWAI + K-Line MUX)";
+      if (device_type === "AGUIACAR_4G") model_name = "AguiaCar 4G Telematics Fleet Guardian";
+      if (device_type === "OSCILOSCOPIO") model_name = "AgentCar Osciloscópio Dual-Channel";
+
+      try {
+        const res = await fetch("/api/workshops/devices/produce", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_type, model_name, batch_code, quantity })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`🎉 ${data.msg}\n\nSeriais Gerados:\n${data.serials.join("\n")}`);
+          await loadAdminData();
+        } else {
+          alert("Erro ao fabricar: " + data.detail);
+        }
+      } catch (e) {
+        alert("Erro de conexão: " + e.message);
+      }
+    }
+
+    // Modal Nova Oficina
+    function openNewWorkshopModal() {
+      document.getElementById("form-new-workshop").reset();
+      document.getElementById("modal-new-workshop").style.display = "flex";
+    }
+
+    function autoSuggestLogin(name) {
+      if (!name) return;
+      const clean = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      const idInput = document.getElementById("w-id");
+      const userInput = document.getElementById("w-username");
+      if (idInput && !idInput.dataset.manual) idInput.value = clean;
+      if (userInput && !userInput.dataset.manual) userInput.value = clean.replace(/-/g, "");
+    }
+
+    async function handleCreateWorkshop(e) {
+      e.preventDefault();
+      const id = document.getElementById("w-id").value.trim().toLowerCase();
+      const name = document.getElementById("w-name").value.trim();
+      const owner_name = document.getElementById("w-owner").value.trim();
+      const contact_phone = document.getElementById("w-phone").value.trim();
+      const contact_email = document.getElementById("w-email").value.trim();
+      const username = document.getElementById("w-username").value.trim();
+      const password = document.getElementById("w-password").value.trim();
+
+      try {
+        const res = await fetch("/api/workshops", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, name, owner_name, contact_phone, contact_email, username, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`✅ ${data.msg}\n\nEnvie estas credenciais para o cliente:\nUsuário: ${username}\nSenha: ${password}`);
+          closeModal('modal-new-workshop');
+          await loadAdminData();
+        } else {
+          alert("Erro ao cadastrar oficina: " + (data.detail || "Verifique se o ID ou Login já existem."));
+        }
+      } catch (err) {
+        alert("Erro de conexão: " + err.message);
+      }
+    }
+
+    // Modal Vincular Aparelho
+    function openAssignModal(serial) {
+      document.getElementById("assign-serial").value = serial;
+      document.getElementById("modal-assign-device").style.display = "flex";
+    }
+
+    async function confirmAssignDevice() {
+      const serial = document.getElementById("assign-serial").value;
+      const workshop_id = document.getElementById("assign-workshop-select").value;
+
+      try {
+        const res = await fetch("/api/workshops/devices/assign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ serial_number: serial, workshop_id })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`✅ ${data.msg}`);
+          closeModal('modal-assign-device');
+          await loadAdminData();
+          if (document.getElementById("panel-hardware-all").classList.contains("active")) {
+            loadAllDevices();
+          }
+        } else {
+          alert("Erro: " + data.detail);
+        }
+      } catch (e) {
+        alert("Erro: " + e.message);
+      }
+    }
+
+    // Desvincular Aparelho
+    async function unlinkDeviceAdmin(serial) {
+      if (!confirm(`Deseja desvincular o aparelho ${serial}? Ele retornará ao Estoque Fabril.`)) return;
+      try {
+        const res = await fetch(`/api/workshops/devices/${serial}/unlink`, { method: "DELETE" });
+        if (res.ok) {
+          await loadAdminData();
+          loadAllDevices();
+        }
+      } catch (e) {
+        alert("Erro: " + e.message);
+      }
+    }
+
+    // Excluir Serial do Banco
+    async function deleteSerial(serial) {
+      if (!confirm(`Tem certeza que deseja EXCLUIR o serial ${serial}? Esta ação não pode ser desfeita.`)) return;
+      try {
+        const res = await fetch(`/api/workshops/devices/${serial}`, { method: "DELETE" });
+        if (res.ok) {
+          await loadAdminData();
+        }
+      } catch (e) {
+        alert("Erro: " + e.message);
+      }
+    }
+
+    // Modal Redefinir Senha
+    function openResetPasswordModal(id, name, username) {
+      document.getElementById("reset-workshop-id").value = id;
+      document.getElementById("reset-workshop-info").value = `${name} (Login: ${username})`;
+      document.getElementById("reset-new-password").value = "";
+      document.getElementById("modal-reset-password").style.display = "flex";
+    }
+
+    async function confirmResetPassword() {
+      const id = document.getElementById("reset-workshop-id").value;
+      const newPass = document.getElementById("reset-new-password").value.trim();
+      if (!newPass) {
+        alert("Digite a nova senha!");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/workshops/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: newPass })
+        });
+        if (res.ok) {
+          alert("✅ Senha alterada com sucesso! O cliente já pode entrar com a nova senha.");
+          closeModal('modal-reset-password');
+          await loadWorkshops();
+        } else {
+          alert("Erro ao alterar senha.");
+        }
+      } catch (e) {
+        alert("Erro: " + e.message);
+      }
+    }
+
+    // Bloquear / Desbloquear Oficina
+    async function toggleWorkshopStatus(id, currentStatus) {
+      const newStatus = (currentStatus === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED');
+      const actionTxt = (newStatus === 'BLOCKED' ? 'BLOQUEAR o acesso desta oficina ao site' : 'REATIVAR o acesso desta oficina');
+      if (!confirm(`Deseja realmente ${actionTxt}?`)) return;
+
+      try {
+        const res = await fetch(`/api/workshops/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (res.ok) {
+          await loadWorkshops();
+        }
+      } catch (e) {
+        alert("Erro: " + e.message);
+      }
+    }
+
+    // Excluir Oficina
+    async function deleteWorkshop(id, name) {
+      if (!confirm(`Tem certeza que deseja EXCLUIR a oficina '${name}'? Seus aparelhos vinculados voltarão para o estoque fabril.`)) return;
+      try {
+        const res = await fetch(`/api/workshops/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          await loadAdminData();
+        }
+      } catch (e) {
+        alert("Erro: " + e.message);
+      }
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).style.display = "none";
+    }
+  </script>
+</body>
+</html>

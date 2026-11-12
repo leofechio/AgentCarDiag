@@ -1,0 +1,57 @@
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+server/.env
+*.pem
+*.key
+*.p12
+*.pfx
+.mcp.json
+.claude/
+**/secrets.h
+!**/secrets.example.h
+
+# Local databases and runtime data
+server/data/*.db
+server/data/*.db-*
+server/data/*.sqlite*
+server/cardiag.db
+server/data/usuarios.json
+server/data/blocked_ips.json
+server/data/user_folders/
+server/data/research/
+server/data/extracted/
+
+# Preserve the data directory placeholder
+!server/data/.gitkeep
+
+# Local Python environments and caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+firmware/*/build/
+**/build/
+*.elf
+*.map
+*.o
+*.a
+
+# Reverse engineering material and archives
+xpro5_analysis/
+*.apk
+*.zip
+*.bak
+
+# Binários operacionais antigos: podem conter tokens incorporados
+server/app/static/*.bin
+
+# Temporary files
+*.tmp
+*.log

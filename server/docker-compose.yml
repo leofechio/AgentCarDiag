@@ -1,0 +1,42 @@
+services:
+  cardiag-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cardiag-server
+    image: cardiag-server:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      # Hot-reload: mount app directory for development
+      - ./app:/app/app:ro
+      # Persistent SQLite database
+      - ./data:/app/data
+      # Antigravity Brain transcript & uploads
+      - /home/leonardof/.gemini/antigravity/brain:/home/leonardof/.gemini/antigravity/brain:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=info
+      - DB_PATH=/app/data/cardiag.db
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - cardiag-net
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cardiag-tunnel
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate --url http://127.0.0.1:8000 run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+
+networks:
+  cardiag-net:
+    driver: bridge

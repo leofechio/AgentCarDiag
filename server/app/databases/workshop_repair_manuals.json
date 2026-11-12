@@ -1,0 +1,469 @@
+{
+  "version": "1.0.0",
+  "system": "AgentCarDiag Technical Service & Workshop Manuals Database (OE Repair Standard)",
+  "total_vehicles": 8,
+  "sources_curated": [
+    "Renault Technical Notes (NT 6017A / MR323)",
+    "Toyota Global Service Information (TIS / 2ZR-FXE / 1GD-FTV)",
+    "Volkswagen VAG ElsaWin / Erwin (EA211 TSI / EA888)",
+    "Ford Etis Service Manuals (EcoBoost / Duratorq TDCi)",
+    "Hyundai/Kia GSW Technical Information (Smartstream GDI)",
+    "GM Service Information (Ecotec Turbo 1.0/1.2)",
+    "Nissan ESM Service Manual (HR16DE)"
+  ],
+  "vehicles": [
+    {
+      "id": "renault_trafic_m9r",
+      "model_name": "Renault Trafic III (2.0 dCi M9R - 2019-2024)",
+      "engine_code": "M9R (2.0 dCi Turbo Diesel Common Rail Euro 6)",
+      "ecu_system": "Bosch EDC17C84 / MD1CS006 (UDS CAN 500k)",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 7.4,
+          "specification": "RN0720 / RN17 FE (5W-30 Low SAPS DPF)",
+          "drain_plug_torque_nm": 20
+        },
+        "cooling_system": {
+          "capacity_liters": 8.5,
+          "specification": "Glaceol RX Type D (Amarelo Orgânico OAT)"
+        },
+        "manual_gearbox": {
+          "capacity_liters": 2.7,
+          "specification": "Tranself NFX 75W (Caixa manual 6 marchas PF6)"
+        },
+        "brake_fluid": {
+          "specification": "DOT 4 ESP / ISO 4925 Class 6"
+        },
+        "refrigerant_ac": {
+          "type": "R1234yf (ou R134a conf. etiqueta)",
+          "charge_grams": "550g ± 25g"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 20 N.m (Parafusos lubrificados na rosca)",
+          "Etapa 2: Aperto angular de +240° ± 6° (Ordem espiral do centro para as extremidades)",
+          "Nota Crítica: Comprimento máximo sob a cabeça para reutilização: 117.7 mm. Se maior, substituir parafusos obrigatoriamente."
+        ],
+        "connecting_rod": [
+          "Etapa 1: 25 N.m",
+          "Etapa 2: Aperto angular de +110° ± 5°"
+        ],
+        "crankshaft_main_bearings": [
+          "Mancais fixos: 35 N.m + 130° angular"
+        ],
+        "camshaft_carrier": [
+          "Pré-aperto: 2.5 N.m",
+          "Aperto final: 13 N.m"
+        ],
+        "high_pressure_fuel_pump": "25 N.m",
+        "oil_pressure_sensor": "44 N.m",
+        "water_pump": "25 N.m (Polia da bomba d'água: 21 N.m)",
+        "glow_plugs": "15 N.m",
+        "diesel_injectors_clamp": "30 N.m (Substituir sempre arruela de vedação de cobre)"
+      },
+      "timing_and_synchronization": {
+        "type": "Corrente metálica de distribuição com tensor hidráulico",
+        "procedure_summary": "1. Posicionar pistão do cilindro 1 em PMS (Ponto Morto Superior) inserindo pino de travamento de virabrequim (Mot. 1766 / Mot. 1770).\n2. Encaixar ferramenta de calibração de comando de válvulas (Mot. 1769) no topo dos eixos de admissão e escape.\n3. O alinhamento dos elos marcados de cobre da corrente deve casar com as marcas das engrenagens de comando.\n4. Destravar o tensor hidráulico aplicando torque de 10 N.m no parafuso guia.",
+        "ckp_cmp_scope_target": "CMP Hall borda de subida coincidente no 14º dente após a falha da fônica de 60-2 dentes."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P0089 / P0201 - Pressão de Rail instável ou corte de aceleração em carga",
+          "cause": "Reguladora de vazão na bomba de alta (MPROP) com impurezas ou arruela de vedação do bico vazando compressão.",
+          "diagnostic_action": "Medir sinal osciloscópio do sensor de pressão de rail (padrão 1.2V a 1.5V em marcha lenta subindo para >3.8V em aceleração plena). Verificar teste de retorno de provetas dos bicos Bosch piezo."
+        },
+        {
+          "fault": "DTC P242F / P1525 - Obstrução de DPF (Filtro de Partículas)",
+          "cause": "Regenerações interrompidas sucessivas, termostato travado aberto (<75°C) ou sensor diferencial de pressão com tubos desintegrados.",
+          "diagnostic_action": "Inspecionar mangueiras de silicone do sensor diferencial. Habilitar modo forçado de regeneração estática via scanner UDS somente após troca de óleo se diluição estiver acima de 8%."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H (500k), Pino 14: CAN-L, Pino 4/5: Massa, Pino 16: +12V Bateria",
+        "ckp_sensor": "Sensor indutivo 2 fios (Conector Marrom na campânula): Resistência ~750 a 950 ohms",
+        "rail_pressure_sensor": "Pino 1: Massa 0V, Pino 2: Sinal (0.5V a 4.5V), Pino 3: Referência +5.00V da ECU"
+      }
+    },
+    {
+      "id": "toyota_corolla_hybrid",
+      "model_name": "Toyota Corolla / Cross Hybrid (2ZR-FXE)",
+      "engine_code": "2ZR-FXE (1.8L Atkinson Ciclo Gasolina/Flex + Motor-Gerador Elétrico MG1/MG2)",
+      "ecu_system": "Denso Hybrid Synergy Drive THS II (Toyota UDS)",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 4.2,
+          "specification": "API SP / ILSAC GF-6A (0W-16 ou 0W-20 Sintético)",
+          "drain_plug_torque_nm": 37
+        },
+        "engine_coolant": {
+          "capacity_liters": 5.5,
+          "specification": "Toyota Super Long Life Coolant (SLLC Rosa)"
+        },
+        "inverter_coolant": {
+          "capacity_liters": 1.6,
+          "specification": "Toyota Super Long Life Coolant (Circuito independente do inversor)"
+        },
+        "hybrid_transaxle_p610": {
+          "capacity_liters": 3.4,
+          "specification": "Toyota ATF WS (Fluido para transeixo híbrido com MG1/MG2)"
+        },
+        "brake_fluid": {
+          "specification": "DOT 4 / Toyota Genuine Brake Fluid"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 49 N.m (Ordem central espiral)",
+          "Etapa 2: Aperto angular de +90°",
+          "Etapa 3: Aperto angular de +45° adicional",
+          "Nota Crítica: Comprimento máx. parafuso 149.2 mm. Diâmetro mínimo de rosca 9.4 mm."
+        ],
+        "connecting_rod": [
+          "Etapa 1: 20 N.m",
+          "Etapa 2: Aperto angular de +90°"
+        ],
+        "crankshaft_pulley": "128 N.m",
+        "spark_plugs": "18 N.m (Velas de Iridium Denso SC20HR11 / SC16HR11)",
+        "inverter_service_plug_interlock": "Travamento mecânico manual com EPI luva isolante 1000V Classe 0"
+      },
+      "timing_and_synchronization": {
+        "type": "Corrente de comando simples com comando VVT-i duplo",
+        "procedure_summary": "1. Alinhar marca de PMS na polia do virabrequim com a marca 0 da tampa de distribuição.\n2. Alinhar marcas de ponto (pontos gravados) das polias VVT-i de admissão e escape com os elos dourados/amarelos da corrente.\n3. Recuar a trava do tensor da corrente e puxar pino de retenção após aperto de 10 N.m.",
+        "ckp_cmp_scope_target": "CKP Hall 36-2 e CMP duplo Hall em 5V."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P0A80 - Substituir Pack de Bateria Híbrida",
+          "cause": "Desbalanceamento de tensão entre blocos de NiMH/Lítio superior a 0.25V sob carga/regeneração.",
+          "diagnostic_action": "Acessar tela do Scanner 'Bateria Híbrida (HV)' PID 2181. Se cooler da bateria estiver obstruído por pelos/poeira, executar teste de atuador do fan (Serviço 2F velocidade 6) e inspecionar duto."
+        },
+        {
+          "fault": "DTC P2610 / P0116 - Bomba d'água elétrica do motor térmico com baixa eficiência",
+          "cause": "Bomba d'água elétrica sem escovas (brushless) travando por oxidação interna.",
+          "diagnostic_action": "Testar rotação via PID de RPM da bomba d'água no scanner (deve operar entre 900 e 3500 RPM conforme ECT)."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H (500k), Pino 14: CAN-L, Pino 7: Linha K (ISO 9141 legada)",
+        "battery_smart_unit": "Conector da ECU de bateria no porta-malas: Pinos de medição de termistores NTC (3 sensores de temp)."
+      }
+    },
+    {
+      "id": "vw_golf_tsi",
+      "model_name": "VW Golf / Polo / T-Cross / Nivus TSI (EA211)",
+      "engine_code": "EA211 (1.0 / 1.4 TSI 16V Turbo Injeção Direta Flex/Gasolina)",
+      "ecu_system": "Bosch MED17.5.21 / MED17.5.25 (UDS ISO 14229)",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 4.0,
+          "specification": "VW 502 00 / 504 00 (5W-40) ou VW 508 00 (0W-20 Verde p/ motores EVO)",
+          "drain_plug_torque_nm": 30
+        },
+        "cooling_system": {
+          "capacity_liters": 6.8,
+          "specification": "G12 EVO / G13 (Violeta Orgânico de Alta Durabilidade)"
+        },
+        "transmission": {
+          "capacity_liters": 1.7,
+          "specification": "G 052 512 A2 (Manual 5/6M) ou Toyota T-IV / JWS 3309 (Automático AQ250 6 marchas)"
+        },
+        "brake_fluid": {
+          "specification": "VW 501 14 / DOT 4 Low Viscosity (Alta resposta p/ ESP)"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 40 N.m (Parafusos M9 novos obrigatórios)",
+          "Etapa 2: Aperto angular de +90°",
+          "Etapa 3: Aperto angular de +90° adicional",
+          "Etapa 4: Aperto angular de +90° adicional (Total 270° de rotação angular)"
+        ],
+        "connecting_rod": [
+          "Etapa 1: 30 N.m",
+          "Etapa 2: Aperto angular de +90°"
+        ],
+        "camshaft_carrier_cover": [
+          "Etapa 1: 10 N.m em cruz do centro para fora",
+          "Etapa 2: +90°"
+        ],
+        "spark_plugs": "22 N.m",
+        "direct_fuel_rail": "20 N.m (Injetores GDI operando a 200-250 bar)"
+      },
+      "timing_and_synchronization": {
+        "type": "Correia dentada lubrificada/reforçada com carcaça blindada",
+        "procedure_summary": "1. Inserir pino de travamento de virabrequim T10340 no bloco do motor.\n2. Inserir régua/ferramenta de bloqueio T10494 na extremidade traseira dos comandos de admissão e escape.\n3. Folgar os parafusos das polias tri-ovais para tensionar a correia com chave Allen até o ponteiro coincidir com a ranhura de referência.\n4. Apertar parafusos das polias de comando a 50 N.m + 90°.",
+        "ckp_cmp_scope_target": "Sinal Hall digital 5V com 60-2 dentes no virabrequim e 4 dentes assimétricos no comando."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P0016 / P0017 - Correlação Virabrequim/Comando fora de tolerância",
+          "cause": "Válvula solenoide de comando variável (N205) com tela de filtro rompida ou borra de óleo obstruindo o atuador hidráulico.",
+          "diagnostic_action": "Retirar solenoide N205 e inspecionar anéis o-ring e carretel. Medir resistência da bobina (7.0 a 9.0 ohms a 20°C)."
+        },
+        {
+          "fault": "DTC P0087 - Pressão de combustível muito baixa no Rail de alta",
+          "cause": "Desgaste no came de acionamento da bomba de alta pressão (bomba mecânica acionada pelo comando de escape) ou tucho de rolete gasto.",
+          "diagnostic_action": "Remover bomba mecânica de alta e inspecionar o rolete de arraste quanto a folga ou estrias."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H (500k), Pino 14: CAN-L, Pino 1: Linha de ignição 15",
+        "wastegate_actuator": "Atuador elétrico eletrônico do turbo: 5 pinos (Motor DC + Potenciômetro duplo de posição Hall)."
+      }
+    },
+    {
+      "id": "ford_ranger_tdci",
+      "model_name": "Ford Ranger / Transit (2.0 / 3.2 TDCi Duratorq & EcoBlue)",
+      "engine_code": "P5AT (3.2 TDCi 5 cilindros) / EcoBlue 2.0 Panther",
+      "ecu_system": "Continental SID208 / SID209 (Ford UDS 500k)",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 9.8,
+          "specification": "Ford WSS-M2C913-D / WSS-M2C950-A (0W-30 / 5W-30 Sintético)",
+          "drain_plug_torque_nm": 34
+        },
+        "coolant": {
+          "capacity_liters": 12.0,
+          "specification": "Ford Super Plus WSS-M97B44-D (Laranja OAT)"
+        },
+        "manual_transmission": {
+          "capacity_liters": 2.7,
+          "specification": "Ford WSS-M2C200-D2 (MT82 6 marchas)"
+        },
+        "automatic_transmission": {
+          "capacity_liters": 10.5,
+          "specification": "Ford Mercon LV (6R80 / 10R80)"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 50 N.m (Parafusos de cabeça estriada)",
+          "Etapa 2: 100 N.m",
+          "Etapa 3: +90° angular",
+          "Etapa 4: +90° angular adicional"
+        ],
+        "connecting_rod": [
+          "Etapa 1: 25 N.m",
+          "Etapa 2: +90°"
+        ],
+        "fuel_injectors_clamp": "24 N.m (Injetores Siemens/Continental Piezo Common Rail)",
+        "crankshaft_damper_pulley": "325 N.m"
+      },
+      "timing_and_synchronization": {
+        "type": "Corrente dupla de distribuição (ou correia banhada a óleo no EcoBlue 2.0)",
+        "procedure_summary": "1. Inserir pino 303-1587 no volante motor através da carcaça do motor de partida.\n2. Alinhar marcas nos eixos balanceadores e comandos de válvulas com ferramenta 303-1584.\n3. Aplicar aperto preliminar no tensor mecânico e retirar travamento.",
+        "ckp_cmp_scope_target": "CKP 60-2 dentes e CMP Hall com leitura de 5 dentes de fase."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P2297 - Sensor de Oxigênio/NOx fora de calibração na desaceleração",
+          "cause": "Sensor de NOx com elemento cerâmico contaminado por fuligem ou chicote rompido na travessa do chassi.",
+          "diagnostic_action": "Medir aquecimento do sensor e alimentação de 12V e 24V conf. módulo conversor NOx."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H (500k), Pino 14: CAN-L, Pino 3: MS-CAN-H (125k), Pino 11: MS-CAN-L (125k)"
+      }
+    },
+    {
+      "id": "hyundai_hb20_tgdi",
+      "model_name": "Hyundai HB20 / Creta (1.0 TGDI Smartstream Kappa)",
+      "engine_code": "Kappa 1.0L Turbo GDI 12V 3 Cilindros",
+      "ecu_system": "Kefico / Bosch MED17.9.8 (UDS CAN 500k)",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 3.6,
+          "specification": "API SP / ILSAC GF-6 (0W-20 Sintético)",
+          "drain_plug_torque_nm": 35
+        },
+        "cooling_system": {
+          "capacity_liters": 5.2,
+          "specification": "Etilenoglicol para radiadores de alumínio (Verde/Azul)"
+        },
+        "transmission": {
+          "capacity_liters": 6.8,
+          "specification": "Hyundai SP-IV (Automática 6 velocidades A6GF1)"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 32.4 N.m",
+          "Etapa 2: +90° angular",
+          "Etapa 3: +90° angular adicional"
+        ],
+        "connecting_rod": [
+          "Etapa 1: 12.7 N.m",
+          "Etapa 2: +90°"
+        ],
+        "spark_plugs": "15 a 20 N.m (NGK SILZKR8G7E)",
+        "high_pressure_pump": "28 N.m"
+      },
+      "timing_and_synchronization": {
+        "type": "Corrente silenciosa de comando com duplo CVVT (Comando Variável Contínuo)",
+        "procedure_summary": "1. Alinhar chaveta do virabrequim com a marca do bloco às 12 horas.\n2. Alinhar marcas gravadas nas engrenagens CVVT com os elos escuros da corrente.\n3. Soltar lingueta do tensor hidráulico com chave de fenda de precisão.",
+        "ckp_cmp_scope_target": "Sinal do virabrequim com 60-2 dentes e comando duplo com sensores Hall em 5V."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P0011 / P0014 - Posição do comando adiantada ou resposta retardada",
+          "cause": "Borra de óleo nas válvulas OCV (Oil Control Valve) decorrente de intervalo de troca de óleo vencido.",
+          "diagnostic_action": "Remover as solenoides OCV de admissão e escape, testar acionamento direto em 12V e resistência de ~7.5 ohms."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H, Pino 14: CAN-L, Pino 12: K-Line secundária"
+      }
+    },
+    {
+      "id": "honda_civic_vtec",
+      "model_name": "Honda Civic / HR-V / City (1.5 Turbo / e:HEV L15B7)",
+      "engine_code": "L15B7 / L15BA (1.5L VTEC Turbo Injeção Direta)",
+      "ecu_system": "Keihin UDS CAN 500k",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 3.5,
+          "specification": "API SP / ILSAC GF-6 (0W-20 Sintético Honda Genuine)",
+          "drain_plug_torque_nm": 40
+        },
+        "cooling_system": {
+          "capacity_liters": 5.0,
+          "specification": "Honda Type 2 All Season Coolant (Azul)"
+        },
+        "cvt_transmission": {
+          "capacity_liters": 3.7,
+          "specification": "Honda HCF-2 (Fluido exclusivo para transmissões CVT)"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 34 N.m (Parafusos lubrificados)",
+          "Etapa 2: +90° angular",
+          "Etapa 3: +90° angular adicional"
+        ],
+        "connecting_rod": [
+          "Etapa 1: 19.6 N.m",
+          "Etapa 2: +90°"
+        ],
+        "spark_plugs": "16 N.m (NGK DILKAR8A8)",
+        "crankshaft_pulley": "64 N.m + 90°"
+      },
+      "timing_and_synchronization": {
+        "type": "Corrente metálica com duplo comando VTEC Dual",
+        "procedure_summary": "1. Posicionar marcação de PMS no virabrequim com indicador na bomba de óleo.\n2. Alinhar linhas horizontais das engrenagens de comando niveladas com a face do cabeçote.\n3. Acionar tensor e retirar pino de calibração.",
+        "ckp_cmp_scope_target": "Sinal CKP indutivo/Hall com 36-2 e CMP duplo Hall."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P0172 - Sistema de combustível excessivamente rico / Diluição de óleo por combustível",
+          "cause": "Injetor de injeção direta gotejando ou partidas a frio repetidas em trajetos curtos.",
+          "diagnostic_action": "Inspecionar nível de óleo (cheiro forte de gasolina). Testar estanqueidade do rail de alta (pressão deve sustentar >100 bar após desligar o motor)."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H (500k), Pino 14: CAN-L, Pino 1: Linha de diagnóstico Honda"
+      }
+    },
+    {
+      "id": "gm_onix_turbo",
+      "model_name": "Chevrolet Onix / Tracker / Montana (1.0 / 1.2 Turbo Ecotec CSS Prime)",
+      "engine_code": "CSS Prime 1.0T / 1.2T 12V 3 Cilindros",
+      "ecu_system": "Bosch MG1CS026 / Delco E80 (GM GMLAN / Global B UDS)",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 3.8,
+          "specification": "Dexos 1 Gen 2 / Gen 3 (0W-20 100% Sintético Obrigatório)",
+          "drain_plug_torque_nm": 14
+        },
+        "cooling_system": {
+          "capacity_liters": 5.4,
+          "specification": "GM Dex-Cool (Rosa/Laranja OAT de Alta Durabilidade)"
+        },
+        "automatic_transmission": {
+          "capacity_liters": 7.0,
+          "specification": "Dexron VI (Transmissão automática 6T30 Gen 3)"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 30 N.m (Parafusos M10 novos obrigatórios)",
+          "Etapa 2: +90° angular",
+          "Etapa 3: +90° angular adicional"
+        ],
+        "connecting_rod": [
+          "Etapa 1: 15 N.m",
+          "Etapa 2: +90°"
+        ],
+        "oil_pump_screen": "9 N.m (Inspecionar pescador quanto a fiapos de correia)",
+        "spark_plugs": "18 N.m"
+      },
+      "timing_and_synchronization": {
+        "type": "Correia dentada banhada a óleo (Belt-in-oil BIO)",
+        "procedure_summary": "1. AVISO CRÍTICO: Utilizar SOMENTE óleo com homologação Dexos 1 Gen 3 para evitar dissolução química da correia.\n2. Inserir pino EN-52461 no volante do motor.\n3. Inserir ferramenta de bloqueio de comandos EN-52462.\n4. Sempre inspecionar a tela do pescador de óleo se houver aviso de pressão de óleo baixa no painel.",
+        "ckp_cmp_scope_target": "Sinal do virabrequim 60-2 e comando de válvulas com leitor Hall."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P0521 - Desempenho do circuito do interruptor/sensor de pressão do óleo",
+          "cause": "Degradação da correia banhada a óleo por uso de óleo inadequado ou combustível adulterado, obstruindo o pescador da bomba de óleo.",
+          "diagnostic_action": "DESLIGAR O MOTOR IMEDIATAMENTE. Retirar o cárter de óleo e inspecionar visualmente a tela do pescador. Se houver partículas pretas de borracha, trocar o kit de correia, bomba de vácuo e limpar galerias."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H (500k), Pino 14: CAN-L, Pino 1: SW-CAN (Single Wire 33.3k p/ módulos de carroceria)"
+      }
+    },
+    {
+      "id": "nissan_kicks_flex",
+      "model_name": "Nissan Kicks / Versa / Sentra (1.6 HR16DE / CVT)",
+      "engine_code": "HR16DE (1.6L 16V 4 Cilindros Duplo Bico Injeção)",
+      "ecu_system": "Hitachi / Continental (Nissan Consult-III Plus UDS CAN 500k)",
+      "fluids_and_capacities": {
+        "engine_oil": {
+          "capacity_liters": 3.0,
+          "specification": "API SP (0W-20 ou 5W-30 Sintético)",
+          "drain_plug_torque_nm": 34
+        },
+        "cooling_system": {
+          "capacity_liters": 6.3,
+          "specification": "Nissan Genuine Long Life Antifreeze/Coolant (Azul L255N)"
+        },
+        "cvt_transmission": {
+          "capacity_liters": 6.9,
+          "specification": "Nissan NS-3 (Fluido específico para transmissão CVT Xtronic Jatco)"
+        }
+      },
+      "torque_specifications": {
+        "cylinder_head": [
+          "Etapa 1: 40 N.m (Parafusos lubrificados)",
+          "Etapa 2: +100° angular",
+          "Etapa 3: Desapertar completamente todos os parafusos a 0 N.m",
+          "Etapa 4: Reaperto preliminar a 25 N.m",
+          "Etapa 5: +100° angular",
+          "Etapa 6: +100° angular adicional"
+        ],
+        "connecting_rod": [
+          "Etapa 1: 17 N.m",
+          "Etapa 2: +60°"
+        ],
+        "spark_plugs": "19.6 N.m",
+        "crankshaft_pulley": "29.4 N.m + 60°"
+      },
+      "timing_and_synchronization": {
+        "type": "Corrente simples de distribuição com VTC variável",
+        "procedure_summary": "1. Posicionar cilindro 1 em PMS com a marca na polia em 0°.\n2. Alinhar elos prateados/dourados da corrente com os pontos puncionados nas engrenagens de comando e virabrequim.\n3. Retirar o clipe de retenção do tensor da corrente.",
+        "ckp_cmp_scope_target": "Sinal do virabrequim de dentes alternados e CMP Hall em 5V."
+      },
+      "common_faults_and_troubleshooting": [
+        {
+          "fault": "DTC P0171 - Sistema muito pobre (Mistura de ar/combustível)",
+          "cause": "Entrada falsa de ar pelas juntas do coletor de admissão de plástico ou bicos injetores duplos (Dual Injector) com giclagem irregular.",
+          "diagnostic_action": "Executar teste com máquina de fumaça no coletor de admissão. Inspecionar anéis de vedação dos 8 bicos injetores (2 bicos por cilindro)."
+        }
+      ],
+      "pinout_and_wiring_quickref": {
+        "obd_connector": "Pino 6: CAN-H (500k), Pino 14: CAN-L, Pino 8: Ignição ligada"
+      }
+    }
+  ]
+}

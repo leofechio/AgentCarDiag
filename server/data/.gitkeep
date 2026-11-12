@@ -1,0 +1,4 @@
+# Database persistence directory
+# This folder is mounted into the Docker container as /app/data
+# The SQLite database file cardiag.db will be created here automatically.
+*.db
