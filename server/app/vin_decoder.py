@@ -8,6 +8,7 @@ Decodifica o VIN automaticamente usando:
 
 import json
 import logging
+from copy import deepcopy
 import urllib.request
 import urllib.parse
 from typing import Dict, Any, Optional
@@ -172,7 +173,7 @@ class VinDecoderService:
             }
 
         if vin in self.cache:
-            return self.cache[vin]
+            return deepcopy(self.cache[vin])
 
         wmi = vin[:3]
         vds = vin[3:9]
@@ -280,7 +281,7 @@ class VinDecoderService:
         result["recommended_steps"] = self._build_steps(result)
         
         # Guarda no cache de memória
-        self.cache[vin] = result
+        self.cache[vin] = deepcopy(result)
         return result
 
     def _build_steps(self, info: Dict[str, Any]) -> list:
