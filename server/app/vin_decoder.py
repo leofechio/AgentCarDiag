@@ -157,18 +157,19 @@ class VinDecoderService:
         """
         Decodifica um VIN de 17 caracteres retornando os dados estruturados do veículo.
         """
-        vin = raw_vin.strip().upper()
-        if len(vin) < 17:
-            # Tenta preencher ou limpar se houver lixo
-            clean_vin = "".join([c for c in vin if c.isalnum()])
-            if len(clean_vin) == 17:
-                vin = clean_vin
-            else:
-                return {
-                    "vin": raw_vin,
-                    "valid": False,
-                    "error": f"VIN inválido (comprimento {len(raw_vin)}, esperado 17 caracteres)"
-                }
+        vin = "".join(c for c in raw_vin.strip().upper() if c.isalnum())
+        if len(vin) != 17:
+            return {
+                "vin": raw_vin,
+                "valid": False,
+                "error": f"VIN inválido (comprimento {len(vin)}, esperado 17 caracteres)"
+            }
+        if any(char in vin for char in "IOQ"):
+            return {
+                "vin": raw_vin,
+                "valid": False,
+                "error": "VIN inválido (os caracteres I, O e Q não são permitidos)"
+            }
 
         if vin in self.cache:
             return self.cache[vin]
