@@ -3,11 +3,13 @@ test_modular_api.py — Testes Unitários e de Integração dos Routers Refatora
 AgentCarDiag
 """
 
+import asyncio
 import unittest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.config import SYSTEM_VERSION, SERVICE_NAME
+from app.routers.system import lookup_dtc_endpoint
 
 
 class TestRefactoredApi(unittest.TestCase):
@@ -32,6 +34,12 @@ class TestRefactoredApi(unittest.TestCase):
         self.assertEqual(data["code"], "P0002")
         self.assertTrue(data["found"])
         self.assertIn("Fuel Volume", data["description"])
+
+    def test_dtc_lookup_normalizes_case_and_annotations(self):
+        """Aceita DTC em minúsculas com anotação e espaços ao redor."""
+        data = asyncio.run(lookup_dtc_endpoint(code=" p0002 (genérico) "))
+        self.assertEqual(data["code"], "P0002")
+        self.assertTrue(data["found"])
 
     def test_auth_me_unauthorized(self):
         """Verifica se /api/auth/me bloqueia acessos sem autenticação HTTP Basic."""

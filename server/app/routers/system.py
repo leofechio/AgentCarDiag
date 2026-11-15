@@ -65,7 +65,7 @@ async def decode_vin_endpoint(vin: str = Query(..., description="17-character VI
 @router.get("/api/dtc/lookup", response_model=DtcLookupResponse, tags=["Vehicles"])
 async def lookup_dtc_endpoint(code: str = Query(..., description="DTC code (ex: P048B, P0117, U029D)")):
     """Busca descrição e diagnóstico na base local de 2.060+ DTCs automotivos."""
-    clean_code = code.strip().upper().split("(")[0]
+    clean_code = code.split("(", 1)[0].strip().upper()
     if DTC_DATABASE_PATH.exists():
         try:
             dtc_data = json.loads(DTC_DATABASE_PATH.read_text(encoding="utf-8"))
