@@ -232,11 +232,10 @@ class Hantek1008C:
         self._send_cmd(0xB7, parameter=[0x00])
         self._send_cmd(0xBB, parameter=[0x08, 0x01 if turn_on else 0x00])
 
-    def init(self, calibrate_all_scales: bool = False) -> None:
+    def init(self, calibrate_all_scales: bool = True) -> None:
         """
-        Inicializa o Hantek 1008C e calibra o zero offset real de cada um dos 8 canais.
-        Se calibrate_all_scales=False (padrão rápido ~1.2s), calibra a escala atual e estima as demais.
-        Se calibrate_all_scales=True (~3.5s), mede fisicamente as 3 escalas (0.02, 0.125, 1.0).
+        Inicializa o Hantek 1008C e calibra o zero offset real de cada um dos 8 canais
+        executando a sequência completa das 3 escalas (0.02, 0.125, 1.0) exigida pelo firmware STM32.
         """
         # Etapa 1: Handshake e leitura de constantes da EEPROM individual do aparelho
         self._send_cmd(0xB0)

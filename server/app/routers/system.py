@@ -181,7 +181,7 @@ async def trigger_hantek1008_capture(
             )
             scope.connect()
             try:
-                scope.init(calibrate_all_scales=False)
+                scope.init(calibrate_all_scales=True)
                 sr = int(scope.get_effective_sample_rate_hz())
                 data = scope.capture_burst(as_volts=True)
                 s1 = [float(v) for v in data.get(c1_idx, [])][:512]

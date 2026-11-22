@@ -178,7 +178,7 @@ async def run_ws_bridge(
     )
     scope.connect()
     try:
-        scope.init(calibrate_all_scales=False)
+        scope.init(calibrate_all_scales=True)
         sr_hz = int(scope.get_effective_sample_rate_hz())
         print(f"✅ Hantek 1008C pronto ({sr_hz} Hz). Conectando ao servidor WebSocket: {ws_url}")
 
@@ -275,7 +275,7 @@ def main() -> int:
         vscale=args.vscale,
         attenuations=args.atten,
         out_json=args.out,
-        calibrate_all=args.full_cal,
+        calibrate_all=True,
     )
 
 
