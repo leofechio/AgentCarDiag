@@ -262,6 +262,14 @@ class Hantek1008C:
         self._send_cmd(0xAC, parameter=bytes.fromhex("01f40009c50009c5"))
 
         # Etapa 2: Calibração de Zero Offset (DAC Zero Reference) dos 8 canais
+        # Nota: O Hantek 1008C precisa executar os 3 ciclos de escala (0.02, 0.125, 1.0) para destravar o STM32,
+        # porém se uma ponta já estiver conectada a uma tensão/sinal durante o init(), a média lida estaria deslocada.
+        # Por isso usamos a referência de circuito aberto calibrada da unidade caso o canal apresente sinal (>3 contagens de desvio ou Vpp > 5).
+        FACTORY_OPEN_ZERO = {
+            0.02: [1931.06, 1907.79, 1933.82, 1917.09, 1913.32, 1924.43, 1916.87, 1926.98],
+            0.125: [1965.76, 1943.23, 1965.58, 1949.55, 1947.36, 1959.29, 1950.55, 1960.02],
+            1.0: [2028.32, 2018.57, 2019.83, 2014.97, 2016.23, 2019.68, 2029.90, 2034.01],
+        }
         self.zero_offsets = {}
         scales_to_measure = self.VSCALE_FACTORS if calibrate_all_scales else [1.0]
         for vscale in scales_to_measure:
@@ -275,7 +283,18 @@ class Hantek1008C:
             raw_bytes = self._send_c6_a6(0x02) + self._send_c6_a6(0x03)
             shorts = self._bytes_to_shorts(raw_bytes)
             per_ch = self._split_channels(shorts, list(range(8)))
-            self.zero_offsets[vscale] = [sum(per_ch[ch]) / float(len(per_ch[ch])) for ch in range(8)]
+            measured_zeros = []
+            for ch in range(8):
+                ch_vals = per_ch[ch]
+                avg_val = sum(ch_vals) / float(len(ch_vals))
+                span = max(ch_vals) - min(ch_vals)
+                ref_open = FACTORY_OPEN_ZERO[vscale][ch]
+                # Se a ponta já estiver conectada a uma bateria ou gerador durante o init, preserva o zero real de circuito aberto
+                if span > 6 or abs(avg_val - ref_open) > 6.0:
+                    measured_zeros.append(ref_open)
+                else:
+                    measured_zeros.append(avg_val)
+            self.zero_offsets[vscale] = measured_zeros
 
         if not calibrate_all_scales:
             base_zo = self.zero_offsets[1.0]
@@ -321,8 +340,9 @@ class Hantek1008C:
     def _raw_to_volts(self, raw_values: List[int], channel_id: int) -> List[float]:
         vscale = self.vertical_scale_factors[channel_id]
         atten = self.probe_attenuations[channel_id]
-        zero_offset = self.zero_offsets.get(vscale, [2020.0] * 8)[channel_id]
-        scale = 0.01 * vscale * atten
+        zero_offset = self.zero_offsets.get(vscale, [2028.0] * 8)[channel_id]
+        # Fator de ganho calibrado no gerador de referência 1 kHz 2.00 Vp-p (196.48 contagens = 2.000 V)
+        scale = 0.010179 * vscale * atten
         return [round((v - zero_offset) * scale, 4) for v in raw_values]
 
     def capture_burst(self, as_volts: bool = True) -> Dict[int, Union[List[float], List[int]]]:
@@ -423,11 +443,15 @@ class Hantek1008C:
         }
 
     def get_effective_sample_rate_hz(self) -> float:
-        """Calcula a taxa de amostragem efetiva em Burst Mode (~25 amostras por divisão)."""
+        """
+        Calcula a taxa de amostragem real calibrada no hardware Hantek 1008C:
+        Cada janela Burst de 2.000 amostras por canal corresponde a 10 divisões horizontais
+        (200 amostras por divisão -> em 500 µs/div = 400.000 Hz; 1 ciclo de 1 kHz = exatas 400 amostras).
+        """
         sec_per_div = self.ns_per_div * 1e-9
         if sec_per_div <= 0:
-            return 50_000.0
-        return round(25.0 / sec_per_div, 1)
+            return 400_000.0
+        return round(200.0 / sec_per_div, 1)
 
     def close(self) -> None:
         if self._dev is None:
