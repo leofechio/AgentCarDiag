@@ -221,6 +221,62 @@ async def delete_device(serial_number: str):
         await db.commit()
         return {"status": "success", "msg": f"Equipamento {clean_serial} excluído do banco de dados."}
 
+
+class DeviceProvisionRequest(BaseModel):
+    device_type: str = "Scanner_CAN"
+    token: Optional[str] = None
+    require_confirmation: bool = True
+
+
+class LegacyModeToggleRequest(BaseModel):
+    enabled: bool
+    force: bool = False
+
+
+@router.post("/devices/{serial_number}/provision", summary="Provisiona credencial individual para um dispositivo ESP32")
+async def provision_device_endpoint(serial_number: str, payload: DeviceProvisionRequest):
+    from app import database as db_mod
+    res = await db_mod.provision_device_credential(
+        serial=serial_number,
+        device_type=payload.device_type,
+        token=payload.token,
+        require_confirmation=payload.require_confirmation,
+    )
+    return {"status": "success", **res}
+
+
+@router.post("/devices/{serial_number}/revoke", summary="Revoga imediatamente a credencial e encerra o socket ativo")
+async def revoke_device_endpoint(serial_number: str):
+    from app import database as db_mod
+    from app.websocket_manager import gateway_manager
+    revoked = await db_mod.revoke_device_credential(serial_number)
+    evicted = await gateway_manager.evict_revoked_device(serial_number)
+    return {
+        "status": "revoked",
+        "serial": serial_number.strip().lower(),
+        "credential_found": revoked,
+        "active_sockets_evicted": evicted,
+    }
+
+
+@router.get("/devices/credentials/status", summary="Consulta status de migração de credenciais individuais e modo legado")
+async def get_credentials_migration_status():
+    from app import database as db_mod
+    return await db_mod.get_migration_status_summary()
+
+
+@router.post("/devices/credentials/legacy-mode", summary="Controla ativação/desativação do modo legado WS_TOKEN")
+async def toggle_legacy_mode_endpoint(payload: LegacyModeToggleRequest):
+    from app import database as db_mod
+    ok, reason = await db_mod.set_legacy_auth_enabled(payload.enabled, force=payload.force)
+    if not ok:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Não é permitido desativar o modo legado ainda: {reason}",
+        )
+    return {"status": "success", "legacy_ws_token_enabled": payload.enabled, "reason": reason}
+
+
 # ─── Endpoints de Oficinas ───────────────────────────────────────────────────
 
 @router.get("", summary="Lista todas as oficinas cadastradas")

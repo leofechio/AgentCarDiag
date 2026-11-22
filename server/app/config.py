@@ -5,6 +5,7 @@ AgentCarDiag Server
 
 import os
 from pathlib import Path
+import ipaddress
 
 # Diretórios Base
 SERVER_DIR = Path(__file__).parent.parent
@@ -75,3 +76,12 @@ MAX_AUTH_ATTEMPTS = int(os.getenv("MAX_AUTH_ATTEMPTS", "3"))
 SECRET_KEY = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY deve ser definido via variável de ambiente ou server/.env")
+
+# Only accept client-IP forwarding headers from explicitly trusted reverse proxies.
+# Loopback is included for local reverse proxies; add Docker/tunnel proxy CIDRs in .env.
+TRUSTED_PROXY_CIDRS = tuple(
+    network
+    for value in os.getenv("TRUSTED_PROXY_CIDRS", "127.0.0.0/8,::1/128").split(",")
+    if value.strip()
+    for network in (ipaddress.ip_network(value.strip(), strict=False),)
+)

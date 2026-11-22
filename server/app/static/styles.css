@@ -758,6 +758,33 @@ html, body {
   font-size: 12px;
 }
 
+.can-metric .val[data-level="warning"] { color: var(--accent-amber); }
+.can-metric .val[data-level="danger"] { color: var(--accent-red); }
+.can-metric-bar {
+  appearance: none;
+  width: 52px;
+  height: 5px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  accent-color: var(--accent-cyan);
+  overflow: hidden;
+}
+.can-metric-bar::-webkit-progress-bar { background: rgba(255, 255, 255, 0.1); border-radius: 999px; }
+.can-metric-bar::-webkit-progress-value { background: var(--accent-cyan); border-radius: 999px; transition: width 180ms ease; }
+.can-metric-bar::-moz-progress-bar { background: var(--accent-cyan); border-radius: 999px; }
+.can-metric-bar[data-level="warning"] { accent-color: var(--accent-amber); }
+.can-metric-bar[data-level="warning"]::-webkit-progress-value,
+.can-metric-bar[data-level="warning"]::-moz-progress-bar { background: var(--accent-amber); }
+.can-metric-bar[data-level="danger"] { accent-color: var(--accent-red); }
+.can-metric-bar[data-level="danger"]::-webkit-progress-value,
+.can-metric-bar[data-level="danger"]::-moz-progress-bar { background: var(--accent-red); }
+@media (max-width: 720px) {
+  .can-metric { padding: 5px 8px; }
+  .can-metric > span:first-child { display: none; }
+  .can-metric-bar { display: none; }
+}
+
 /* ─── Buttons ────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
@@ -813,6 +840,29 @@ html, body {
 .btn.active { background: rgba(255, 171, 64, 0.22) !important; border-color: rgba(255, 171, 64, 0.4) !important; color: var(--accent-amber) !important; }
 
 /* ─── CAN Table ──────────────────────────────────────────────────── */
+.can-crc-panel {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) 2fr;
+  gap: 12px;
+  align-items: center;
+  margin: 10px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-cyan);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+.can-crc-heading { display: grid; gap: 4px; }
+.can-crc-title { color: var(--text-primary); font-size: 12px; font-weight: 700; }
+.can-crc-note, .can-crc-label { color: var(--text-muted); font-size: 10px; }
+.can-crc-values { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.can-crc-values > div { display: grid; gap: 5px; min-width: 0; }
+.can-crc-values strong { overflow: hidden; color: var(--accent-cyan); font: 600 12px 'JetBrains Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  .can-crc-panel { grid-template-columns: 1fr; }
+  .can-crc-values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .can-table-wrapper { flex: 1; min-height: 250px; overflow: hidden; position: relative; }
 
 .can-table-scroll { height: 100%; overflow-y: auto; overflow-x: auto; }

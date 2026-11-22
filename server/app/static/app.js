@@ -89,6 +89,7 @@ const state = {
   canPaused: false,
   canTotal: 0,
   canPacketTimestamps: [],
+  canTelemetryFrames: [],
 
   // OSC
   oscFrozen: false,
@@ -1069,6 +1070,8 @@ function appendCanRow(frame) {
   const now = Date.now();
   state.canPacketTimestamps.push(now);
   state.canTotal++;
+  recordCanTelemetryFrame(frame, now);
+  updateCanCrcPanel(frame);
   
   if (state.canPaused || state.activeTab !== 'can') return;
 
@@ -1100,11 +1103,11 @@ function appendCanRow(frame) {
   tr.dataset.payload = dataHex;
   tr.dataset.origin = sourceLabel;
   tr.innerHTML = `
-    <td class="td-ts">${ts}</td>
-    <td class="td-id">${idHex.toUpperCase()}</td>
-    <td class="td-dlc">${frame.dlc ?? '–'}</td>
-    <td class="td-data">${dataHex}</td>
-    <td><span class="td-source ${meta ? meta.cls : 'source-other'}">${sourceLabel}</span></td>
+    <td class="td-ts">${escapeHtml(ts)}</td>
+    <td class="td-id">${escapeHtml(idHex.toUpperCase())}</td>
+    <td class="td-dlc">${escapeHtml(frame.dlc ?? '–')}</td>
+    <td class="td-data">${escapeHtml(dataHex)}</td>
+    <td><span class="td-source ${meta ? meta.cls : 'source-other'}">${escapeHtml(sourceLabel)}</span></td>
   `;
 
   tbody.insertBefore(tr, tbody.firstChild);
@@ -1112,6 +1115,84 @@ function appendCanRow(frame) {
 
   if (atTop) scroll.scrollTop = 0;
   // Note: updateCanStats (which calls updateVisibilityCounter) is called every 1 second globally.
+}
+
+// CRC-15/CAN (poly 0x4599, init/xorout 0) over payload bytes only.
+// The WebSocket frame does not provide SOF/arbitration/control bits, so this
+// deliberately does not claim to validate the complete on-wire frame CRC.
+let canCrcCalculationCount = 0;
+function updateCanCrcPanel(frame) {
+  let bytes;
+  if (Array.isArray(frame.data)) {
+    bytes = frame.data;
+  } else if (typeof frame.data === 'string') {
+    const tokens = frame.data.trim().split(/\s+/).filter(Boolean);
+    if (tokens.some(token => !/^(?:[0-9a-f]{1,2})$/i.test(token))) return;
+    bytes = tokens.map(token => parseInt(token, 16));
+  } else if (frame.data == null) {
+    bytes = [];
+  } else {
+    return;
+  }
+  if (bytes.some(byte => !Number.isInteger(byte) || byte < 0 || byte > 255)) return;
+  let crc = 0;
+  for (const byte of bytes) {
+    for (let shift = 7; shift >= 0; shift--) {
+      const feedback = ((crc >> 14) & 1) ^ ((byte >> shift) & 1);
+      crc = (crc << 1) & 0x7fff;
+      if (feedback) crc ^= 0x4599;
+    }
+  }
+  canCrcCalculationCount++;
+  const idEl = document.getElementById('can-crc-id');
+  const crcEl = document.getElementById('can-crc-value');
+  const dataEl = document.getElementById('can-crc-data');
+  const countEl = document.getElementById('can-crc-count');
+  if (idEl) idEl.textContent = String(frame.id ?? '—');
+  if (crcEl) crcEl.textContent = `0x${crc.toString(16).padStart(4, '0').toUpperCase()}`;
+  if (dataEl) dataEl.textContent = bytes.length ? bytes.map(byte => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ') : '(vazio)';
+  if (countEl) countEl.textContent = String(canCrcCalculationCount);
+}
+
+// Estimativa visual alinhada ao modelo server/app/can_telemetry.py.
+// Usa janela móvel de 5 s e CAN clássico nominal (sem bit stuffing).
+function recordCanTelemetryFrame(frame, now = Date.now()) {
+  const dlcValue = Number(frame.dlc ?? (Array.isArray(frame.data) ? frame.data.length :
+    (typeof frame.data === 'string' ? frame.data.trim().split(/\s+/).filter(Boolean).length : NaN)));
+  const isError = frame.is_error === true || frame.error === true || frame.type === 'can_error';
+  state.canTelemetryFrames.push({ at: now, dlc: Number.isInteger(dlcValue) ? Math.max(0, Math.min(8, dlcValue)) : 0, isError });
+  const cutoff = now - 5000;
+  state.canTelemetryFrames = state.canTelemetryFrames.filter(item => item.at >= cutoff);
+  updateCanTelemetryDisplay(now);
+}
+
+function updateCanTelemetryDisplay(now = Date.now()) {
+  const frames = state.canTelemetryFrames.filter(item => item.at >= now - 5000);
+  const bits = frames.reduce((sum, item) => sum + (item.isError ? 0 : 47 + 8 * item.dlc), 0);
+  const load = Math.min(100, bits / (500000 * 5) * 100);
+  const errors = frames.length ? frames.filter(item => item.isError).length / frames.length * 100 : 0;
+  const loadEl = document.getElementById('can-bus-load');
+  const errorEl = document.getElementById('can-error-rate');
+  const loadBar = document.getElementById('can-bus-load-bar');
+  const errorBar = document.getElementById('can-error-rate-bar');
+  const loadLevel = load >= 70 ? 'danger' : load >= 40 ? 'warning' : 'normal';
+  const errorLevel = errors >= 5 ? 'danger' : errors > 0 ? 'warning' : 'normal';
+  if (loadEl) {
+    loadEl.textContent = `${load.toFixed(2).replace('.', ',')}%`;
+    loadEl.dataset.level = loadLevel;
+  }
+  if (errorEl) {
+    errorEl.textContent = `${errors.toFixed(2).replace('.', ',')}%`;
+    errorEl.dataset.level = errorLevel;
+  }
+  if (loadBar) {
+    loadBar.value = load;
+    loadBar.dataset.level = loadLevel;
+  }
+  if (errorBar) {
+    errorBar.value = errors;
+    errorBar.dataset.level = errorLevel;
+  }
 }
 
 function appendCanRowFromHistory(row) {
@@ -1153,6 +1234,7 @@ function updateCanStats() {
   document.getElementById('can-pps-display').textContent  = pps;
   document.getElementById('can-total-display').textContent = state.canTotal;
   document.getElementById('can-pps-badge').textContent     = pps;
+  updateCanTelemetryDisplay(now);
   updateVisibilityCounter();
 }
 

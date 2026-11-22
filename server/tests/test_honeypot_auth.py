@@ -38,7 +38,8 @@ class TestMultiBoxHoneypotDefense(unittest.TestCase):
         import asyncio
         from app import database as db
         asyncio.run(db.init_db())
-        cls.client = TestClient(app)
+        # Simulate a local reverse proxy, which is trusted by default.
+        cls.client = TestClient(app, client=("127.0.0.1", 50000))
 
     def setUp(self):
         # Limpa IPs de teste antes de cada caso
@@ -224,13 +225,22 @@ class TestMultiBoxHoneypotDefense(unittest.TestCase):
         r_cf = self.client.get("/api/auth/status", headers={"CF-Connecting-IP": "203.0.113.195"})
         self.assertEqual(r_cf.json()["client_ip"], "203.0.113.195")
 
-        # 2. X-Forwarded-For (pega o primeiro IP da lista de proxy)
+        # 2. X-Forwarded-For (seleciona o salto não confiável mais próximo do proxy)
         r_xff = self.client.get("/api/auth/status", headers={"X-Forwarded-For": "198.51.100.42, 10.0.0.1"})
-        self.assertEqual(r_xff.json()["client_ip"], "198.51.100.42")
+        self.assertEqual(r_xff.json()["client_ip"], "10.0.0.1")
 
         # 3. X-Real-IP
         r_real = self.client.get("/api/auth/status", headers={"X-Real-IP": "192.0.2.77"})
         self.assertEqual(r_real.json()["client_ip"], "192.0.2.77")
+
+    def test_untrusted_peer_cannot_spoof_forwarded_ip(self):
+        """Forwarding headers from a direct, untrusted client must be ignored."""
+        direct_client = TestClient(app, client=("198.51.100.10", 50000))
+        response = direct_client.get(
+            "/api/auth/status",
+            headers={"X-Forwarded-For": "192.0.2.99", "CF-Connecting-IP": "192.0.2.98"},
+        )
+        self.assertEqual(response.json()["client_ip"], "198.51.100.10")
 
     def test_persistence_in_sqlite_and_json(self):
         """

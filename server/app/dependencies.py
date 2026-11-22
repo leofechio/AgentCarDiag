@@ -40,11 +40,28 @@ async def verify_credentials(
             uname = session_data["username"]
             folder = session_data.get("folder", f"pasta_{uname}")
             is_adm = (uname == ADMIN_USER or uname == "admin")
+            workshop_id = "oficina-matriz"
+            workshop_name = uname.capitalize()
+            try:
+                async with get_db() as db_conn:
+                    async with db_conn.execute(
+                        "SELECT id, name FROM workshops WHERE username = ? OR id = ?",
+                        (uname.strip(), uname.strip().lower())
+                    ) as cur:
+                        w_row = await cur.fetchone()
+                        if w_row:
+                            workshop_id = w_row[0]
+                            workshop_name = w_row[1]
+            except Exception:
+                pass
+
             return {
+                "authenticated": True,
+                "user": uname,
                 "username": uname,
                 "is_admin": is_adm,
-                "workshop_id": folder,
-                "name": uname.capitalize(),
+                "workshop_id": workshop_id,
+                "name": workshop_name,
                 "folder": folder
             }
 
@@ -53,6 +70,8 @@ async def verify_credentials(
         # Master Admin
         if secrets.compare_digest(credentials.username, ADMIN_USER) and secrets.compare_digest(credentials.password, ADMIN_PASSWORD):
             return {
+                "authenticated": True,
+                "user": ADMIN_USER,
                 "username": ADMIN_USER,
                 "is_admin": True,
                 "workshop_id": "oficina-matriz",
@@ -75,6 +94,7 @@ async def verify_credentials(
                         )
                     if secrets.compare_digest(credentials.password, w_pass or "123456"):
                         return {
+                            "authenticated": True,
                             "username": w_user or w_id,
                             "is_admin": False,
                             "workshop_id": w_id,

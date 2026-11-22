@@ -8,7 +8,9 @@ import json
 import sys
 import urllib.request
 
-BASE_HTTP = "http://127.0.0.1:8000"
+import os
+
+BASE_HTTP = os.getenv("CARDIAG_BASE_URL", "http://127.0.0.1:8001")
 
 PASSED = 0
 FAILED = 0

@@ -55,3 +55,7 @@ server/app/static/*.bin
 # Temporary files
 *.tmp
 *.log
+
+# Extra database path
+server/app/data/*.db
+server/app/data/*.db-*

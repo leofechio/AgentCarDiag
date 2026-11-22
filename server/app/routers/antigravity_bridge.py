@@ -27,10 +27,13 @@ logger = logging.getLogger("cardiag.remote_chat")
 
 router = APIRouter(tags=["Antigravity Remote Bridge"])
 
-BRAIN_CONV_DIR = Path("/home/leonardof/.gemini/antigravity/brain/d1217ac4-77d5-4769-aebb-01fd307eb357")
+BRAIN_CONV_DIR = Path.home() / ".gemini" / "antigravity" / "brain" / "d1217ac4-77d5-4769-aebb-01fd307eb357"
 TRANSCRIPT_PATH = BRAIN_CONV_DIR / ".system_generated" / "logs" / "transcript.jsonl"
 UPLOAD_DIR = BRAIN_CONV_DIR / ".user_uploaded"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
 
 PREFERRED_MODELS = [
     "gemini-3.1-flash-lite",
@@ -226,7 +229,7 @@ async def send_mobile_message(payload: MobileMessagePayload):
 
     # Registra no transcript para sincronizar
     now_iso = datetime.now(timezone.utc).isoformat()
-    imgs_annot = " ".join([f"/home/leonardof/.gemini/antigravity/brain/d1217ac4-77d5-4769-aebb-01fd307eb357/.user_uploaded/{u.split('/')[-1]}" for u in all_images])
+    imgs_annot = " ".join([str(UPLOAD_DIR / u.split("/")[-1]) for u in all_images])
     prompt_record = f"<USER_REQUEST>[Celular] {payload.message} {imgs_annot}".strip() + "</USER_REQUEST>"
 
     try:

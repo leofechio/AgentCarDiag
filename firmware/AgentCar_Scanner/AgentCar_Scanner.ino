@@ -36,7 +36,7 @@ const uint16_t WS_PORT     = 80;
 const char* DEVICE_SERIAL  = "s2000"; // Protótipo s2000
 const char* FIRMWARE_VERSION = "v2.5.2"; // Versão com Freeze Frame + UDS + Telemetria
 #include "secrets.h"
-const char* WS_URL         = "/ws/esp32?token=" SECRET_WS_TOKEN;
+const char* WS_URL         = "/ws/esp32?type=Scanner_CAN&serial=s2000";
 
 // ----------------------------------------------------------------------------
 // Configurações do Módulo CAN (SN65HVD230)
@@ -606,12 +606,14 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
             setRGB(COLOR_BLUE);
             break;
         case WStype_CONNECTED:
-            Serial.println("[WS] Conectado ao Servidor AgentCarDiag!");
+            Serial.println("[WS] Conectado ao Servidor AgentCarDiag! Enviando handshake de autenticacao...");
             setRGB(COLOR_GREEN);
             {
                 JsonDocument initDoc;
                 initDoc["type"] = "hw_info";
+                initDoc["token"] = SECRET_WS_TOKEN;
                 initDoc["serial"] = DEVICE_SERIAL;
+                initDoc["device_type"] = "Scanner_CAN";
                 initDoc["fw_version"] = FIRMWARE_VERSION;
                 initDoc["proto"] = (active_protocol == 0) ? "can" : "kline";
                 initDoc["pin"] = active_obd_pin;

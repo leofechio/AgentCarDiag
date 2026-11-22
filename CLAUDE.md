@@ -1,14 +1,17 @@
-# CLAUDE.md — AgentCarDiag (`/home/leonardof/AgentCarDiag`)
+# CLAUDE.md — AgentCarDiag (`/home/leonardof/AgentCarDiag` & `C:\Users\Usuario\AgentCarDiag`)
 
-> **LEITURA OBRIGATÓRIA:** Sempre consulte [`memory.md`](file:///home/leonardof/AgentCarDiag/memory.md) antes de modificar firmware, backend, rotas WebSocket ou configurações do servidor. O arquivo `memory.md` contém todas as especificações de hardware, pinouts, protocolos automotivos e histórico de engenharia do projeto.
+> **LEITURA OBRIGATÓRIA:** Sempre consulte [`memory.md`](file:///home/leonardof/AgentCarDiag/memory.md) antes de modificar firmware, backend, rotas WebSocket ou configurações do servidor. O arquivo `memory.md` contém todas as especificações de hardware, pinouts, protocolos automotivos, casos reais periciados e histórico de engenharia do projeto.
 
 ## 1. Arquitetura do Projeto
-- **`memory.md`**: Base de conhecimento completa (44+ seções detalhadas) do AgentCarDiag.
+- **`memory.md`**: Base de conhecimento completa (50+ seções detalhadas) do AgentCarDiag.
+- **`PROMPT_PADRAO_UNIVERSAL_AGENTCARDIAG.txt`** & **`.agents/rules/diagnosticador.md`**: Prompt mestre e regra sempre ativa do Engenheiro Automotivo Pericial nos dois notebooks.
 - **`MANUAL_GESTAO_FABRICA_CLIENTES.md`**: Manual de provisionamento de equipamentos, gestão de clientes e operação de fábrica.
 - **`firmware/`**: Firmwares para ESP32-S3 (Scanner OBD2 CAN/K-Line, Osciloscópio `o2000`, ÁguiaCar Roteador 4G `v7` na placa LilyGO T-SIM7670G-S3).
 - **`server/`**: Backend FastAPI + WebSockets + Dashboard Web (`server/app/main.py`, `server/app/static/`, `server/app/security/honeypot_auth.py`).
+- **`vlinker_diag.py`**, **`full_vehicle_scan.py`**, **`flight_recorder_3min.py`** & **`elm327_tools/`**: Ferramentas de campo Bluetooth LE / RFCOMM para Vgate vLinker MC+ (`C0:25:E8:5A:95:ED`).
+- **`dbscar7/`**: Driver USB CDC (`VID_03EB&PID_2404`) + BLE (`DC:0D:30:4E:5D:FE`) e catálogo de 185 opcodes (`OPCODES.md`) para a VCI Launch DBScar VII (`SN: 988430843570`).
+- **`hantek_tools/`**: Driver USB nativo PyUSB/libusb (`hantek1008_driver.py`) e CLI/Bridge WebSocket (`hantek_cli.py`) para o Osciloscópio Automotivo de 8 Canais **Hantek 1008C** (`USB 0783:5725` / `YDJ-2088`).
 - **`xpro5_analysis/`**: Engenharia reversa, bibliotecas nativas e pacotes de montadoras (Peugeot, Citroën, VW/Audi, BMW, Mercedes, Land Rover, Volvo, etc.).
-- **`workshop_data/`**: Dados operacionais da oficina.
 
 ## 2. Resumo Rápido de Hardware (ESP32-S3)
 - **Porta Serial padrão:** `/dev/ttyACM0` (CDC/JTAG)
@@ -32,3 +35,27 @@
   rsync -avz /home/leonardof/AgentCarDiag/server/app/ anjos@192.168.0.50:/home/anjos/AgentCarDiag/server/app/
   ssh anjos@192.168.0.50 "cd /home/anjos/AgentCarDiag/server && docker compose restart cardiag-server"
   ```
+
+## 4. Interfaces de Diagnóstico & Osciloscópio de Campo
+### 4.1 Vgate vLinker MC+ (Bluetooth LE 4.0+)
+- **Nome BLE:** `vLinker MC-IOS` | **Nome Clássico:** `vLinker MC-Android` (PIN: `1234`)
+- **Endereço MAC BLE:** `C0:25:E8:5A:95:ED`
+- **Service UUID:** `000018f0-0000-1000-8000-00805f9b34fb` | **Notify (RX):** `00002af0-0000-1000-8000-00805f9b34fb` | **Write (TX):** `00002af1-0000-1000-8000-00805f9b34fb`
+- **Regra Anti-Saturação (`BUFFER FULL`):** Sempre usar filtro físico `ATSH <TX>`, `ATCRA <RX>`, `ATFCSH <TX>`, `ATFCSD 300000`, `ATFCSM 1` antes de consultas UDS multi-frame e restaurar com `ATAR` + `ATSH 7DF`.
+
+### 4.2 Launch DBScar VII (`SN: 988430843570`, FW `V20.61`)
+- **USB CDC:** `VID_03EB&PID_2404` @ `115200 bps` | **BLE (ISSC UART):** MAC `DC:0D:30:4E:5D:FE` (`49535343-fe7d-4ae5-8fa9-9fafd205e455`).
+- **Protocolo:** `55 AA F0 F8` com checksum XOR seed `0x08` (`dbscar7/dbscar7.py`, `dbscar7/OPCODES.md`).
+
+### 4.3 Osciloscópio Automotivo 8 Canais Hantek 1008C (`USB 0783:5725` / `YDJ-2088`)
+- **Driver & CLI:** `hantek_tools/hantek1008_driver.py` e `hantek_tools/hantek_cli.py`.
+- **Linux:** Regra udev `/etc/udev/rules.d/99-hantek1008.rules` (`ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0783", ATTR{idProduct}=="5725", MODE="0666"`).
+- **Windows:** Instalar driver `WinUSB` / `libusb-win32` via **Zadig** para o dispositivo `YDJ-2088 (0783:5725)`.
+- **Comandos Rápidos:**
+  - Captura Burst CLI: `python hantek_tools/hantek_cli.py --capture --ch 1 2 3 4`
+  - Streaming WebSocket ao vivo para a UI: `python hantek_tools/hantek_cli.py --ws ws://127.0.0.1:8000/ws/hardware --ch 1 2`
+
+## 5. Sincronização Simultânea via GitHub (Dual-Notebook Workflow)
+- Ambos os notebooks (Linux e Windows de trabalho) compartilham o mesmo repositório GitHub (`origin`).
+- Sempre que iniciar uma sessão: `git pull --rebase origin main`.
+- Sempre que concluir um diagnóstico, adicionar um novo DID/PID, script ou seção no `memory.md`: `git add -A && git commit -m "feat(diag): ..." && git push origin main`.

@@ -30,7 +30,7 @@ const uint16_t WS_PORT     = 80;
 const char* DEVICE_SERIAL  = "o2000"; // Letra 'o' + 4 dígitos (Protótipo o2000)
 const char* FIRMWARE_VERSION = "v2.5.2";
 #include "secrets.h"
-const char* WS_URL         = "/ws/esp32?token=" SECRET_WS_TOKEN;
+const char* WS_URL         = "/ws/esp32?type=Osciloscopio&serial=o2000";
 
 // ----------------------------------------------------------------------------
 // Configurações do Osciloscópio (Hardware)
@@ -66,12 +66,14 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     if (type == WStype_DISCONNECTED) {
         Serial.println("[WS] Desconectado!");
     } else if (type == WStype_CONNECTED) {
-        Serial.println("[WS] Conectado ao Servidor AgentCarDiag!");
+        Serial.println("[WS] Conectado ao Servidor AgentCarDiag! Enviando handshake de autenticacao...");
         setRGB(COLOR_GREEN);
         {
             JsonDocument initDoc;
             initDoc["type"] = "hw_info";
+            initDoc["token"] = SECRET_WS_TOKEN;
             initDoc["serial"] = DEVICE_SERIAL;
+            initDoc["device_type"] = "Osciloscopio";
             initDoc["fw_version"] = FIRMWARE_VERSION;
             String iOut;
             serializeJson(initDoc, iOut);

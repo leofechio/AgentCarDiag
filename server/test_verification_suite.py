@@ -10,9 +10,12 @@ import time
 import urllib.request
 import websockets
 
-BASE_HTTP = "http://127.0.0.1:8000"
-WS_ESP32 = "ws://127.0.0.1:8000/ws/esp32?token=AgentCarV2_Secreto_123&type=Scanner_CAN"
-WS_TELEMETRY = "ws://127.0.0.1:8000/ws/telemetry"
+import os
+
+PORT = os.getenv("CARDIAG_PORT", "8001")
+BASE_HTTP = f"http://127.0.0.1:{PORT}"
+WS_ESP32 = f"ws://127.0.0.1:{PORT}/ws/esp32?token=AgentCarV2_Secreto_123&type=Scanner_CAN"
+WS_TELEMETRY = f"ws://127.0.0.1:{PORT}/ws/telemetry"
 
 PASSED = 0
 FAILED = 0

@@ -1179,3 +1179,171 @@ Implementada nova aba na aplicação Web (`#panel-xpro` e endpoint `/api/xpro`) 
 - **Modo de Dados:** `ESP_MODEM_MODE_DATA`. Ao receber o evento `ARDUINO_EVENT_PPP_GOT_IP`, a interface celular WAN é atrelada ao gateway SoftAP `192.168.4.1`, permitindo que todos os pacotes IP gerados pelos clientes do Wi-Fi `v7` sejam roteados e traduzidos via NAPT para a internet móvel.
 
 
+---
+
+## 45. Integração de Campo: Vgate vLinker MC+ BLE (`C0:25:E8:5A:95:ED`) & Regra Anti-Saturação `BUFFER FULL`
+
+### 45.1 Especificações de Conexão Bluetooth LE 4.0+ (`vLinker MC-IOS`)
+Validado em campo no notebook Windows via Python `bleak` sem necessidade de pareamento prévio no painel Bluetooth Clássico:
+- **Nome BLE (4.0+):** `vLinker MC-IOS` | **Nome Clássico:** `vLinker MC-Android` (PIN: `1234`)
+- **Chipset / Firmware:** `ELM327 v2.2` / `STN1151 v4.3.2` (suporta HS-CAN, MS-CAN, SW-CAN e K-Line)
+- **Endereço MAC BLE:** `C0:25:E8:5A:95:ED`
+- **GATT Service UUID:** `000018f0-0000-1000-8000-00805f9b34fb`
+- **GATT Notify (RX da ECU):** `00002af0-0000-1000-8000-00805f9b34fb`
+- **GATT Write (TX para ECU):** `00002af1-0000-1000-8000-00805f9b34fb`
+- **Scripts Integrados no Repositório Base:**
+  - `vlinker_bluetooth_config.json`: Configuração persistida do adaptador BLE.
+  - `vlinker_diag.py`: Cliente assíncrono BLE com suporte a CAN 11/29-bit, KWP2000 5-Baud/Fast Init e handshake cirúrgico (`--handshake`).
+  - `full_vehicle_scan.py`: Scanner multi-módulos cirúrgico por família de montadoras (`powertrain`, `vag_porsche`, `mercedes_w910`, `ford`, `renault_psa`).
+  - `flight_recorder_3min.py`: Gravador de caixa-preta em movimento com gatilho Stand-by (`RPM > 100`), parada graciosa por `stop_rec.flag` e persistência dupla (`.jsonl` + `obd_metrics` no `cardiag.db`).
+
+### 45.2 Regra de Ouro Anti-Saturação do Buffer (`BUFFER FULL` Prevention)
+1. **Sincronismo Estrito por Prompt (`>`):** Aguardar sempre o caractere `>` da resposta anterior antes de transmitir o próximo comando AT/Hex.
+2. **Proibição de `ATCM 000` em Redes CAN Ativas:** Em veículos modernos (ex: Mercedes Sprinter W910 com 55 CAN IDs cíclicos em alta velocidade na faixa `0x020..0x507`), abrir o filtro `ATCM 000` satura a UART interna do adaptador (`BUFFER FULL`) em milissegundos, exigindo desconexão física da tomada OBD-II.
+3. **Filtro Físico de Hardware CAN + Flow Control Obrigatório:**
+   - Antes de consultar qualquer módulo específico via UDS/KWP-on-CAN:
+     ```text
+     ATSH <TX_ID>
+     ATCRA <RX_ID>
+     ATFCSH <TX_ID>
+     ATFCSD 300000
+     ATFCSM 1
+     ```
+   - Isso instrui o silício do controlador CAN do vLinker a descartar 100% do tráfego cíclico da rede do carro e aceitar exclusivamente os quadros vindos de `<RX_ID>`.
+   - Ao concluir a consulta ao módulo: limpar o filtro com `ATAR` e `ATSH 7DF`.
+4. **Remoção Automática do Checksum K-Line quando `ATH1` está Ativo:**
+   - Em protocolos K-Line (`ISO 14230-4 KWP` e `ISO 9141-2`), quando `ATH1` está habilitado (`8X F1 10 41 PID <DATA...> <CS>`), o último byte da linha exibida pelo ELM327/vLinker é o byte de checksum KWP, devendo ser removido pelo parser (`parse_kwp_or_can_pid_bytes`).
+
+---
+
+## 46. Engenharia Reversa & Driver do Launch DBScar VII (`SN: 988430843570`)
+
+### 46.1 Especificações de Hardware (USB CDC & Bluetooth LE)
+- **Dispositivo:** VCI Launch DBScar VII (`SN: 988430843570 V0`, Chip ID `59384b323230383134343038`).
+- **Versões Internas:** Bootloader `V1.22.004`, Firmware `V20.61`, App `V02.24`, Hardware `V03.00`.
+- **Canal USB Serial CDC:** `VID_03EB&PID_2404` (Atmel/Microchip CDC @ `115200 bps`, 8N1, DTR/RTS ativos). Funciona para comandos de identificação mesmo sem 12V no conector OBD-II.
+- **Canal Bluetooth LE (ISSC Transparent UART):**
+  - O rádio BLE só liga quando alimentado com 12V pelo conector OBD-II. Conecta direto via Python `bleak` sem pareamento prévio no SO.
+  - **MAC BLE:** `DC:0D:30:4E:5D:FE` | **Nome:** `988430843570`
+  - **Service UUID:** `49535343-fe7d-4ae5-8fa9-9fafd205e455`
+  - **Notify (RX):** `49535343-1e4d-4bd9-ba61-23c647249616`
+  - **Write (TX):** `49535343-8841-43f4-a8d4-ecbe34729bb3`
+
+### 46.2 Protocolo Binário `55 AA F0 F8` & Matriz de Multiplexação (`dbscar7/`)
+- **Framing Host -> VCI:** `55 AA F0 F8` + `Length (uint16 BE = 1 + len(cmd) + len(data))` + `Counter (1B)` + `Cmd (2B)` + `Payload` + `Checksum XOR (seed inicial 0x08)`.
+- **Framing VCI -> Host:** `55 AA F8 F0` + `Length` + `Counter` + `Cmd_Resp` + `Payload` + `Checksum XOR`.
+- **Comandos Principais:**
+  - `21 03` (`AdapterVerInfo`): Retorna Chip ID e Serial (`988430843570`).
+  - `21 05` (`AdapterVer`): Retorna versões de Boot/FW/App/HW.
+  - `27 01` (`SendRecvOldCommand`): Encapsula os **185 opcodes** extraídos da biblioteca nativa `libCOMM_ABSTRACT_LAYER.so` (documentados integralmente em `dbscar7/OPCODES.md`):
+    - `40 01` (`ReadVoltage`): Retorna tensão do pino 16 OBD-II em milivolts nos 2 últimos bytes (`uint16 BE`).
+    - `60 02 <uint32 BE baud> <logic>` (`SetEcuBaudRate`): Configura baudrate arbitrário (`10400`, `9600`, `4800`, etc.).
+    - `60 1E <mode> <count> <pins...>` (`SelectMultiIoLine`): Comuta a matriz interna de relés/transistores para qualquer pino do conector OBD-II (`OBD_PIN_TO_LAUNCH_IO`: Pino 1->4, 2->11, 3->5, 4->9, 6->1, 7->2, 8->3, 9->12, 10->6, 11->8, 12->7, 13->10, 14->13).
+    - `60 09 <addr>` (`SendAddressCodeGetKeyword`): Executa **5-baud init** na K-Line e devolve as keywords da ECU + tensão em mV (ex: `60 09 01` na VW Multivan T5 2.5 TDI retornou `00 02 02 EF 8F 2E 9F` -> keywords `EF 8F` = VAG KWP2000; `60 09 33` retornou keywords `08 08` = ISO 9141-2).
+    - `62 1A` (`ResetComm`): Reseta canal de comunicação.
+- **Armadilha de Cold Boot (`67 04`) e Handoff a Quente:**
+  - Ao ser desplugado do 12V OBD-II, a RAM do firmware `V20.61` inicia com `21 01 -> 61 01 00` e rejeita comandos `27 01` com `67 04` até receber autenticação `60 28` (`DBSCarSecurCertf`) do tablet Launch X-PRO5.
+  - **Procedimento Operacional:** Conectar o tablet X-PRO5 por alguns segundos com o DBScar VII plugado no OBD-II 12V para autenticar a sessão em RAM, desconectar o Bluetooth do tablet **sem desplugar o DBScar VII da tomada OBD-II** e assumir imediatamente pelo notebook via BLE ou USB.
+
+---
+
+## 47. Casos Reais de Perícia Automotiva & Metodologias Desenvolvidas em Campo
+
+### 47.1 VW Multivan T6 2.0 BiTDI (`4600 LNB` — Motor `CXEB` Delphi DCM6.2V + DSG DQ500)
+- **VIN:** `WV2ZZZ7HZGH043133` | **ECU Motor (`7E0->7E8`):** `04L906056AF` SW `6207` | **TCM DSG (`7E1->7E9`):** `0BT300012C` SW `5302`.
+- **Auditoria Forense de Reprogramação (Remap / DTC-Off):**
+  - `22 04 07` (Flash Counter): `0x0E` (**14 gravações** na memória flash).
+  - `22 F1 5B` (Flash Tool Fingerprint): `0C 0B 18 01 02 03 04 05 06` (assinatura clássica de ferramenta de chiptuning com máscara de `P0299` *Underboost* desativada).
+- **DIDs UDS da Mecatrônica DSG DQ500 (`7E1->7E9` em Sessão `10 03`):**
+  - `22 10 1A` / `22 10 4F`: Odômetro real interno da transmissão (`199.849 km`).
+  - `22 10 1B`: Odômetro da última adaptação de embreagem (`196.258 km`).
+  - `22 10 02`: Estado de acoplamento da embreagem | `22 10 03`: Marcha engatada.
+  - `22 10 57` & `22 10 5B`: Kiss Point (`2.36 bar`) e Pressão Máxima (`13.02 bar`) da Embreagem K1 (marchas ímpares).
+  - `22 10 59` & `22 10 5D`: Kiss Point (`3.42 bar`) e Pressão Máxima (`14.00 bar`) da Embreagem K2 (marchas pares).
+  - `22 10 58`: Pressão hidráulica instantânea aplicada na embreagem ($\text{bar}$).
+- **DIDs Internos do BiTurbo na Delphi DCM6.2V (`7E0->7E8` em Sessão `10 03`):**
+  - `22 20 BD`: Posição em mV da cápsula do turbo de alta pressão (HP - sensor `G581`, `~780 mV` em repouso; ao mover para `675 mV` dispara `P00AF`).
+  - `22 20 89`: Sensor cápsula turbo (`~805 mV`), `22 20 38`: Desvio malha de controle (`int16 signed`), `22 20 39`: Atuador primário (`693 -> 773` na rotina `31 01 02 03`).
+- **Descoberta Pericial (Falsa Patinação de DSG vs. `0.00 bar` de Boost + Corte de Pedal em `61.6%`):**
+  - O cruzamento de `RPM Motor (7E8)` vs `RPM Entrada DSG (7E9)` e a relação `RPM / km/h` provaram **0% de patinação** nas embreagens K1/K2. O carro não desenvolvia porque o `MAP (010B)` estava cravado em `90 kPa` (`0.00 bar` de boost relativo) e, ao cruzar exatamente **`61.6%` de pedal (`0149`)**, o monitoramento de torque Nível 2 cortava a injeção e fechava a borboleta `TVA` para `0.0%`.
+  - Após reparo do circuito de vácuo do turbo HP e vedação da abraçadeira V-band do DPF, o boost subiu para **`+1.64 bar` (`255 kPa`)**, `MAF` atingiu `168.06 g/s` e `Rail` atingiu **`2.001,0 bar`**.
+- **Armadilha de Sessão na Delphi DCM6.2V:** Dentro da sessão estendida `10 03`, a ECU bloqueia respostas ao Modo `01` OBD-II. Para telemetria rápida Modo `01`, usar sempre a sessão padrão `10 01`.
+
+### 47.2 Mercedes-Benz Sprinter 311 CDI W910 (`5688 KYP` — Motor OM651 Delphi CRD3 + Gateway EZS167)
+- **VIN:** `WDB9106211P126479` (2019, Frigorífico Zanotti).
+- **Descoberta das 3 Sub-redes CAN Roteadas pelo Gateway EZS167:**
+  1. **Powertrain (`TX = 7E0..7E5 -> RX = TX + 0x08`):** `7E0->7E8` (ECM CRD3 `A 651 901 33 02`), `7E1->7E9` (TCM), `7E2->7EA` (CPC_NG `A 907 900 29 04`), `7E3->7EB` (SCR AdBlue), `7E5->7ED` (FSCM). *Nota:* Ignora broadcast `7DF`; exige endereçamento físico `7E0`.
+  2. **Gateway & Coluna (`TX = 740..77F -> RX = TX - 0x20`):** `745->725` (EZS167 `A 167 901 27 02`), `742->722` (Coluna `A 000 901 62 04`).
+  3. **Carroceria, Painel & Airbag (`TX = 600..67F -> RX = TX - 0x80`):** **`645->5C5` (`ORC177` / `N2/10` Airbag SRS `A 907 901 79 00`)**, `641->5C1` (Painel `IC907`), `609->589` (SAM/BCM), `638->5B8` (MBUX).
+- **DIDs UDS do Airbag `ORC177` (`645->5C5`):**
+  - `22 F1 11` (Hardware Part Number Daimler), `22 F1 21` (Software Part Numbers).
+  - `22 01 00`: Resistência das espoletas pirotécnicas (*squibs*) -> `00 5A` (`~2.4 Ω` simétricos).
+  - `22 02 05` / `22 02 06`: Tapete sensor de ocupação do banco e fivela do cinto (`0xFF` = Circuito Aberto).
+- **Lição Técnica Crítica (Tapete de Ocupação vs. Squib Pirotécnico):**
+  - O DTC ativo **`B1C1E-13` (`9C 1E 13`, status `0x29`)** no Airbag (`645->5C5`) gerava em cascata o código **`U0452-FA` (`C4 52 FA`)** no módulo `CPC_NG` (`7E2->7EA`).
+  - Enquanto uma espoleta pirotécnica de airbag trabalha com `2.2 Ω a 3.3 Ω`, o **tapete sensor de ocupação de 2 fios** do banco da Sprinter W910 trabalha com **`300 Ω a 400 Ω` em repouso (banco vazio)**. A aplicação de um resistor de teste de **`330 Ω`** mudou imediatamente o status do `B1C1E-13` de `0x29` (Ativo) para `0x28` (Passado), permitindo apagar as falhas com `14 FF FF FF` tanto no `645` quanto no `7E2`.
+
+### 47.3 Porsche Panamera 970 V8 DFI (`5588 LCW` — Cascata CAN DME -> PSM+ -> PTM/AWD -> PASM)
+- **VIN:** `WP0ZZZ97ZAL082867` | **14 Módulos CAN Mapeados:** `7E0->7E8` (DME V8 `97061858112_1175`), `7E1->7E9` (PDK `97061839025_RW012`), `710->77A` (Gateway), `713->77D` (PSM+ `97061811313`), `714->77E` (Painel `KI G1V8_T`), `715->77F` (Airbag), `722->78C` (PDCC), `723->78D` (HDS), `725->78F` / `754->7BE` (SWS), `729->793` (SU G1), `746->7B0` (Climatronic), `752->7BC` (EPB), `755->7BF` (PASM), `757->7C1` (ACC).
+- **Diagnóstico de Efeito Cascata:**
+  - O código raiz **`P0016`** (*Correlação Virabrequim vs. Comando Banco 1*), gravado no Freeze Frame exatamente na **partida a frio a `20 °C` e `1.343 RPM`**, fazia o DME invalidar o sinal de torque na rede CAN. Em resposta, o **PSM+ (`713`)** disparava `C12080` (status `0xFF`) e o **PASM (`755`)** disparava `C12097` (status `0x09`), exibindo falsos alertas de falha de estabilidade e tração total (PTM), embora o câmbio PDK (`7E9`) estivesse 100% íntegro.
+  - Causa crônica associada nos motores Porsche 970 V8 (2010–2012): parafusos de alumínio do variador de fase **VarioCam Plus** / solenoide hidráulico VVT Banco 1.
+
+### 47.4 Audi S4 B6 4.2L V8 40V (`5868 FPC` — Sessão Nativa VAG KWP2000 `10 89` vs. OBD Genérico)
+- **VIN:** `WAUZZZ8E23A407489` | **ECU:** Bosch `ME7.1.1` (`8E0910560` v`0030`).
+- **Descoberta de Protocolo VAG K-Line:**
+  - No OBD-II genérico (`ATSP4`, Modo `03`), a ME7.1.1 exibia apenas 1 código (`P0501`).
+  - Ao abrir **KWP2000 Fast Init (`ATSP5`)**, entrar na **Sessão Diagnóstica Nativa VAG (`10 89`)** e requisitar **`18 00 FF 00`**, a ECU revelou **9 códigos VAG completos** (incluindo `P0300`, `P0302` *Cylinder 2 Misfire*, `P1423`/`P1411` SAI B1/B2, `P1672`/`P1900` Ventoinhas 1 e 2 e `P1917`/`18325` Relé J151 da bomba pós-arrefecimento).
+  - **Blocos de Medição de Misfire em Tempo Real (`21 <Grupo_Hex>`):** `21 0E` (Grupo 014: Misfires Totais), `21 0F` (Grupo 015: Cilindros 1–3), `21 10` (Grupo 016: Cilindros 4–6), `21 11` (Grupo 017: Cilindros 7–8), `21 20` (Grupo 032: Adaptações Lambda LTFT B1/B2).
+- **Contraprova Elétrica dos Sensores Frontais de Airbag (`G283` / `G284` — `8E0 959 651 B`):**
+  - Módulos `15 - Airbag` e `56 - Rádio RNS-D` no chassi B6 utilizam protocolo legado **KWP1281** (acessados via Launch).
+  - Medindo com multímetro no conector amarelo desconectado do sensor de impacto frontal (`G283`/`G284`), um dos pinos apresenta **exatamente `7.5 Ω` em relação à massa** através da malha interna da unidade de Airbag `J234`, permitindo identificar com precisão o par blindado `Branco + Marrom` dentro do chicote do farol esquerdo.
+
+### 47.5 Audi A4 B6 (`3304 NLS` — Metodologia do "Teste de Rampa Estática" para `P0171` Mistura Pobre)
+- **VIN:** `WAUZZZ8EZ1A049685` | **Protocolo:** `ISO 14230-4 (KWP 5BAUD)`.
+- **Metodologia Diferencial (`P0171` com `LTFT = +25.0%`):**
+  - Se o `STFT` **cair para zero/negativo** a `3.000–3.500 RPM`, a causa é um **pequeno vazamento de vácuo no coletor** (diluído pelo alto fluxo de ar em rotação elevada).
+  - Se o `STFT` **subir ainda mais** sob alta rotação (no A4 subiu de `+0.8%` em lenta para **`+8.59%` a `3.498 RPM`**, totalizando **`+33.6%` de correção positiva** com `MAF = 10.25 g/s`), descarta-se micro-vazamento de vácuo e comprova-se **déficit proporcional à vazão** (MAF subestimando massa de ar, baixa pressão/vazão da bomba de combustível ou entrada falsa grande pós-MAF / válvula PCV rompida).
+
+### 47.6 Ford Transit Courier 1.0 EcoBoost GDI (`WF0NXXTACNFE59728` — Falha de Cilindro por Queda da Bomba de Alta HPFP)
+- **Topologia CAN Ford:** `7E0->7E8` (ECM `ET71-14C204-NA`), `720->728` (IPC), `730->738` (PSCM), `737->73F` (RCM Airbag), `760->768` (ABS).
+- **Lição Pericial GDI:** O código ativo **`P0251-13`** (*Circuito Aberto na Válvula Dosadora da Bomba de Alta Pressão HPFP*) acompanhado de `P0087-62` e `P053F-21` deixava a pressão do Rail (`0123`) estagnada em **`6.90 a 8.40 bar`** (apenas a pressão da bomba elétrica de baixa do tanque, contra `30–50+ bar` exigidos em marcha lenta GDI) e `STFT = +25.0%`. Sem alta pressão para nebulizar a gasolina na injeção direta, o cilindro falha por falta de atomização — razão pela qual desplugar a bobina do cilindro 3 não alterava o funcionamento do motor.
+
+### 47.7 Renault Mégane II 1.5 dCi K9K (`VF1BMRF0533536460` — Arquitetura Híbrida K-Line + KWP2000-on-CAN)
+- **Descoberta de Arquitetura Dual:** O OBD-II padrão responde via K-Line (`ATSP5` KWP Fast Init), mas todos os módulos originais Renault respondem em **CAN 500 kbps (`ATSP6`) via KWP2000-on-CAN** (`10 C0` + identificação `21 80` + leitura de falhas `17 FF 00`), exceto o módulo de **Airbag (`752->772`)** que já opera em **UDS (`19 02 FF`)**.
+- **Topologia Renault X84:** `7E0->7E8` (ECM K9K `8200469752`), `740->760` (ABS Bosch 8.0 `7701059250` — DTC ativo `500F` / `C100F` status `0xED` acendendo a luz `SERVICE`), `742->762` (EPS `8200246631`), `743->763` (Painel `TDB_X84` `8200399695`), `745->765` (UCH `8200351182`), `752->772` (Airbag `7701069906`).
+- **Auditoria de Intervalo de Revisão no Painel (`743->763`):**
+  - `21 11`: Bytes `1E 0C` = Teto configurado de **`30.000 km`** (`0x1E * 1000`) e **`12 meses`** (`0x0C`).
+  - `21 12`: Bytes `37 B8` (`uint16 BE` = **`14.264 km` restantes**) e `00 97` (`uint16 BE` = **`151 dias` restantes**).
+  - **Alerta Poka-Yoke:** Jamais enviar escrita bruta `0x3B` no `TDB_X84` sem o mapa exato da versão de EEPROM para não causar travamento `ERROR PROG` no painel.
+
+### 47.8 BMW E46 Cabrio M54 (`Siemens MS43` — Estratégia de Emergência *Alpha-N* & GM5 *Short-Drop*)
+- **Protocolo:** `ISO 9141-2` (K-Line Pino 7). Calibrações `0904`: `7530854` / `7531979`.
+- **Física do Modo de Emergência *Alpha-N*:** Com os DTCs ativos **`P0102`** (Circuito MAF baixo, lendo `0.00 g/s` no PID `0110`) e **`P1620`** (Termostato Mapeado), a DME Siemens MS43 trava a Carga Calculada (`0104`) em `0.0%`, congela o `LTFT` dos Bancos 1 e 2 (`0107`/`0109`) em `0.0%` e opera por mapa de emergência rico (*Alpha-N*: RPM × TPS), forçando os `STFT` (`0106`/`0108`) a `-3.91% a -6.25%`.
+
+---
+
+## 48. Integração Nativa do Osciloscópio Automotivo 8 Canais Hantek 1008C (`USB 0783:5725`)
+
+### 48.1 Identificação de Hardware & Correção do Bug de Assertions de EEPROM
+- **Identificadores USB:** `idVendor = 0x0783` (C3PO), `idProduct = 0x5725` (`YDJ-2088` / **Hantek 1008C 8-Channel Automotive Oscilloscope**).
+- **Endpoints USB Bulk:** `OUT = 0x02` (2), `IN = 0x81` (129), pacotes de 64 bytes em Full Speed (12 Mbps).
+- **Causa Raiz da Falha em Drivers Genéricos (`hantek1008py`):**
+  - O script original `hantek1008py` possuía `assert response == bytes.fromhex(...)` hardcoded nos comandos `0xE5`, `0xF7`, `0xF8` e `0xFA` dentro de `_init3()`. Como esses comandos retornam os **coeficientes individuais de calibração de fábrica gravados na EEPROM de cada unidade Hantek 1008C**, o `assert` quebrava em qualquer aparelho real diferente do exemplar do autor original.
+- **Solução Implementada em `hantek_tools/hantek1008_driver.py`:**
+  - Remoção das assertions hardcoded e armazenamento dinâmico das tabelas de calibração da EEPROM (`self.eeprom_calibration`).
+  - Medição automática do **Zero Offset (DAC Reference)** real dos 8 canais (`CH1` a `CH8`) nas 3 escalas verticais (`1.0`, `0.125` e `0.02`), convertendo amostras brutas de 12 bits (`0..4095`) diretamente em Volts precisos com suporte a pontas atenuadoras (`1x`, `10x`, `20x HT201`, etc.).
+
+### 48.2 Ferramentas CLI, Ponte WebSocket e Endpoints REST Integrados
+- **`hantek_tools/hantek1008_driver.py`:** Classe `Hantek1008C` com captura Burst (`2.000 amostras` por canal), streaming Roll Mode, gerador de sinais digitais de 8 canais e motor estatístico (`Vmin`, `Vmax`, `Vmean`, `Vpp`, `Vrms`, `Duty Cycle %` e `Frequência Hz` com histerese).
+- **`hantek_tools/hantek_cli.py`:**
+  - Captura rápida no terminal + persistência automática em `osc_captures` (`cardiag.db`):
+    `python3 hantek_tools/hantek_cli.py --capture --ch 1 2 3 4 --atten 1 1 1 1`
+  - Ponte WebSocket em tempo real para a aba **Osciloscópio** do painel Web:
+    `python3 hantek_tools/hantek_cli.py --ws ws://127.0.0.1:8000/ws/hardware --ch 1 2`
+- **Endpoints FastAPI (`server/app/routers/system.py`):**
+  - `GET /api/oscilloscope/hantek/status`: Detecta instantaneamente via USB se o Hantek 1008C está plugado.
+  - `POST /api/oscilloscope/hantek/capture`: Dispara captura Burst via USB, salva no SQLite e transmite o evento `adc_burst` para todos os navegadores abertos.
+- **Permissões de Sistema Operacional:**
+  - **Linux:** Regra `/etc/udev/rules.d/99-hantek1008.rules` (`ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0783", ATTR{idProduct}=="5725", MODE="0666"`).
+  - **Windows (Notebook de Trabalho):** Ao plugar o Hantek 1008C, abrir o utilitário **Zadig**, selecionar o dispositivo **`YDJ-2088 (0783:5725)`** e instalar o driver **`WinUSB`** (ou `libusb-win32`), permitindo que o Python (`pyusb` / `libusb`) acesse o osciloscópio diretamente sem bloqueio do driver HID antigo do Windows.

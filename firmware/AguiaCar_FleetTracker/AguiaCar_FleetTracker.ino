@@ -641,6 +641,8 @@ void sendTelemetryPacket(const char* event_type = "aguiacar_telemetry") {
         String url = "http://" + String(SERVER_HOST) + "/api/fleet/telemetry_ingest";
         if (http.begin(client, url)) {
             http.addHeader("Content-Type", "application/json");
+            http.addHeader("X-Device-Token", WS_TOKEN);
+            http.addHeader("X-Device-Serial", DEVICE_ID);
             http.setTimeout(4000);
             int httpCode = http.POST(jsonOut);
             Serial.printf("[AGUIA HTTP] Resposta Envio: %d\n", httpCode);

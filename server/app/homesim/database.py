@@ -3,8 +3,11 @@ import os
 import re
 from datetime import datetime
 
-# Banco SQLite isolado no volume de dados persistentes (/app/data/homesim.db)
-DB_PATH = os.environ.get("HOMESIM_DB_PATH", "/app/data/homesim.db")
+from app.config import DATA_DIR
+
+# Banco SQLite isolado no volume de dados persistentes (/app/data/homesim.db ou DATA_DIR / homesim.db)
+_default_homesim_db = "/app/data/homesim.db" if (os.path.exists("/app/data") or os.access("/app", os.W_OK)) else str(DATA_DIR / "homesim.db")
+DB_PATH = os.environ.get("HOMESIM_DB_PATH", _default_homesim_db)
 
 async def init_db():
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)

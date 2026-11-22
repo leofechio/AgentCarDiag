@@ -25,8 +25,8 @@ class FleetConfigUpdate(BaseModel):
     max_speed: float
     notify_disconnect: int
     geofence_enabled: Optional[int] = 1
-    geofence_lat: Optional[float] = 42.580346
-    geofence_lon: Optional[float] = -5.584364
+    geofence_lat: Optional[float] = 40.4168
+    geofence_lon: Optional[float] = -3.7038
     geofence_radius_km: Optional[float] = 15.0
 
 class TelemetryPayload(BaseModel):

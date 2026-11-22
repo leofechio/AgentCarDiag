@@ -1,0 +1,12 @@
+{
+  "adapter_name": "vLinker MC-IOS (Vgate vLinker MC+ BLE 4.0+)",
+  "classic_name": "vLinker MC-Android",
+  "ble_mac_address": "C0:25:E8:5A:95:ED",
+  "pairing_pin": "1234",
+  "gatt_service_uuid": "000018f0-0000-1000-8000-00805f9b34fb",
+  "gatt_notify_rx_uuid": "00002af0-0000-1000-8000-00805f9b34fb",
+  "gatt_write_tx_uuid": "00002af1-0000-1000-8000-00805f9b34fb",
+  "elm_version": "ELM327 v2.2 (OBDII to RS232 Interpreter / STN1151 v4.3.2)",
+  "default_protocol": "ATSP6 (ISO 15765-4 CAN 11-bit ID, 500 kbaud)",
+  "last_verified_at": "2026-11-22T23:20:00+01:00"
+}

@@ -309,7 +309,28 @@
           <div class="toolbar-stat" title="Total de pacotes">
             <span>Total</span><span class="val" id="can-total-display">0</span>
           </div>
+          <div class="toolbar-stat can-metric" title="Estimativa de carga CAN clássico a 500 kbps, últimos 5 segundos">
+            <span>Carga CAN</span><span class="val" id="can-bus-load" aria-live="polite">0,00%</span>
+            <progress class="can-metric-bar" id="can-bus-load-bar" max="100" value="0" aria-label="Carga do barramento CAN"></progress>
+          </div>
+          <div class="toolbar-stat can-metric" title="Frames sinalizados como erro nos últimos 5 segundos">
+            <span>Erros CAN</span><span class="val" id="can-error-rate" aria-live="polite">0,00%</span>
+            <progress class="can-metric-bar" id="can-error-rate-bar" max="100" value="0" aria-label="Percentual de frames CAN com erro"></progress>
+          </div>
         </div>
+
+        <section class="can-crc-panel" aria-label="CRC do payload CAN" aria-live="polite">
+          <div class="can-crc-heading">
+            <span class="can-crc-title">CRC-15/CAN do payload</span>
+            <span class="can-crc-note">Bytes recebidos · MSB primeiro · sem bits de cabeçalho</span>
+          </div>
+          <div class="can-crc-values">
+            <div><span class="can-crc-label">Último ID</span><strong id="can-crc-id">—</strong></div>
+            <div><span class="can-crc-label">CRC calculado</span><strong id="can-crc-value">—</strong></div>
+            <div><span class="can-crc-label">Payload</span><strong id="can-crc-data">Aguardando frame</strong></div>
+            <div><span class="can-crc-label">Calculados</span><strong id="can-crc-count">0</strong></div>
+          </div>
+        </section>
 
         <!-- ─── FILTER BAR ──────────────────────────────────────────────────── -->
         <div class="can-filter-bar" role="search" aria-label="Filtros do Sniffer CAN">
@@ -2253,7 +2274,7 @@
 <script src="/static/uds_dict.js?v=4"></script>
 <script src="/static/scanner.js?v=13"></script>
 <script src="/static/telemetry.js?v=13"></script>
-<script src="/static/app.js?v=34"></script>
+<script src="/static/app.js?v=35"></script>
 <script src="/static/dev_agent.js?v=3"></script>
 <script src="/static/aguiacar.js?v=3"></script>
 <script src="/static/workshops.js?v=1"></script>

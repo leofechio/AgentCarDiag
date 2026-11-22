@@ -4,14 +4,18 @@ Async SQLite via aiosqlite. Schema: sessions, can_logs, osc_captures.
 DB path is configured via the DB_PATH env var (default: ./data/cardiag.db).
 """
 
+import asyncio
+import hashlib
 import json
 import logging
 import os
+import secrets
+import shutil
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 import aiosqlite
 
@@ -43,7 +47,8 @@ CREATE TABLE IF NOT EXISTS can_logs (
     can_id      TEXT NOT NULL,
     dlc         INTEGER NOT NULL,
     data_hex    TEXT NOT NULL,
-    source      TEXT DEFAULT 'RAW'
+    source      TEXT DEFAULT 'RAW',
+    frame_uid   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS osc_captures (
@@ -211,6 +216,25 @@ CREATE TABLE IF NOT EXISTS blocked_ips (
     last_attempt_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_blocked_ips_expires ON blocked_ips(expires_at);
+
+-- ─── Device Credentials (Autenticação Individual de Hardware) ─────────────────
+CREATE TABLE IF NOT EXISTS device_credentials (
+    serial           TEXT PRIMARY KEY,
+    device_type      TEXT NOT NULL,
+    token_hash       TEXT NOT NULL,
+    auth_level       TEXT NOT NULL DEFAULT 'individual',
+    is_revoked       INTEGER NOT NULL DEFAULT 0,
+    migration_status TEXT NOT NULL DEFAULT 'CONFIRMED',
+    created_at       TEXT NOT NULL,
+    last_auth_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_dev_cred_revoked ON device_credentials(is_revoked);
+
+CREATE TABLE IF NOT EXISTS security_settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
 """
 
 # ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -263,6 +287,28 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE fleet_telemetry ADD COLUMN driving_event TEXT DEFAULT ''")
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE can_logs ADD COLUMN frame_uid TEXT")
+        except Exception:
+            pass
+        try:
+            await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_can_logs_uid ON can_logs(frame_uid) WHERE frame_uid IS NOT NULL")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE device_credentials ADD COLUMN migration_status TEXT NOT NULL DEFAULT 'CONFIRMED'")
+        except Exception:
+            pass
+
+        now_str = _now()
+        await db.execute(
+            "INSERT OR IGNORE INTO security_settings (key, value, updated_at) VALUES ('legacy_ws_token_enabled', '1', ?)",
+            (now_str,)
+        )
+        await db.execute(
+            "INSERT OR IGNORE INTO security_settings (key, value, updated_at) VALUES ('allow_url_token_fallback', '1', ?)",
+            (now_str,)
+        )
 
         # Atualiza credenciais padrão para as oficinas se estiverem nulas
         await db.execute("UPDATE workshops SET username = id WHERE username IS NULL OR username = ''")
@@ -274,7 +320,6 @@ async def init_db() -> None:
             count = row[0] if row else 0
 
         if count == 0:
-            now_str = _now()
             pilots = [
                 ("oficina-matriz", "Matriz AgentCar Tech (Lab & P&D)", "Eng. Leonardo Fechio", "admin@agentcar.me", "+34 600 000 001"),
                 ("oficina-piloto-01", "Oficina Piloto 01 — Auto Mecânica Precision", "Carlos Alberto", "carlos@precisionauto.com", "+34 611 111 001"),
@@ -316,8 +361,20 @@ async def init_db() -> None:
                     (s_num, d_type, m_name, b_code, w_id, d_status, c_at, a_at)
                 )
 
+        # Carrega seriais revogados para cache em memória
+        async with db.execute("SELECT serial FROM device_credentials WHERE is_revoked = 1") as cur:
+            rev_rows = await cur.fetchall()
+            _revoked_serials.clear()
+            for r in rev_rows:
+                _revoked_serials.add(str(r[0]).strip().lower())
+
         await db.commit()
     logger.info(f"Database initialized at {DB_PATH}")
+    # Recupera automaticamente qualquer lote CAN retido no spool secundário em disco
+    try:
+        await recover_can_spool()
+    except Exception as e:
+        logger.warning(f"[DB] Aviso ao recuperar spool CAN na inicialização: {e}")
 
 
 @asynccontextmanager
@@ -454,6 +511,7 @@ async def update_session_timestamp(session_id: str) -> None:
 
 async def get_session_detail(session_id: str, limit: int = 500) -> Optional[dict]:
     """Return session + last N CAN frames + last 50 OSC captures (without full samples blob)."""
+    await flush_pending()
     session = await get_session(session_id)
     if not session:
         return None
@@ -496,49 +554,693 @@ CAN_ID_SOURCE = {
     "0x310": "TEMP",
 }
 
-# In-memory batch buffer to reduce write frequency
+# In-memory batch buffer + Durable secondary disk spool
 _can_batch: list[tuple] = []
 _BATCH_SIZE = 20
+_MAX_CAN_BUFFER = 5000
+_MAX_SPOOL_FRAMES = 50000
+_MAX_SPOOL_BYTES = 10 * 1024 * 1024        # 10 MB limite máximo para o arquivo de spool em disco
+_MIN_DISK_FREE_BYTES = 20 * 1024 * 1024    # 20 MB espaço livre mínimo na partição
+_MAX_FLUSH_RETRIES = 3
+_MAX_SPOOL_WRITE_RETRIES = 3
+
+_can_batch_lock: Optional[asyncio.Lock] = None
+_can_flush_lock: Optional[asyncio.Lock] = None
+_can_spool_path: Optional[Path] = None
+
+_can_dropped_frames_count = 0
+_can_buffer_overflow_alert = False
+_can_spool_saturation_alert = False
+_can_spool_write_errors = 0
+_can_spooled_frames_total = 0
+_can_recovered_frames_total = 0
+
+
+def _get_can_lock() -> asyncio.Lock:
+    global _can_batch_lock
+    if _can_batch_lock is None:
+        _can_batch_lock = asyncio.Lock()
+    return _can_batch_lock
+
+
+def _get_flush_lock() -> asyncio.Lock:
+    global _can_flush_lock
+    if _can_flush_lock is None:
+        _can_flush_lock = asyncio.Lock()
+    return _can_flush_lock
+
+
+def _get_spool_path() -> Path:
+    if _can_spool_path is not None:
+        return Path(_can_spool_path)
+    return Path(DB_PATH).parent / "can_spool.jsonl"
+
+
+def _read_spool_records() -> list[tuple]:
+    """Lê todos os registros válidos do arquivo de spool secundário preservando a ordem FIFO."""
+    spool_path = _get_spool_path()
+    if not spool_path.exists():
+        return []
+    records: list[tuple] = []
+    try:
+        with open(spool_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line_s = line.strip()
+                if not line_s:
+                    continue
+                try:
+                    arr = json.loads(line_s)
+                    if isinstance(arr, list) and len(arr) >= 6:
+                        if len(arr) == 6:
+                            arr.append(uuid.uuid4().hex)
+                        records.append(tuple(arr[:7]))
+                except Exception:
+                    continue
+    except Exception as e:
+        logger.error(f"[DB-Spool] Erro ao ler arquivo de spool CAN ({spool_path}): {e}")
+    return records
+
+
+def _write_spool_records_atomic(records: list[tuple]) -> bool:
+    """Reescreve ou remove atomicamente o spool secundário somente após confirmação."""
+    global _can_spool_write_errors, _can_spool_saturation_alert
+    spool_path = _get_spool_path()
+    try:
+        if not records:
+            if spool_path.exists():
+                spool_path.unlink(missing_ok=True)
+            return True
+
+        spool_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = spool_path.with_suffix(".jsonl.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            for rec in records:
+                f.write(json.dumps(list(rec)) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, spool_path)
+        return True
+    except Exception as e:
+        _can_spool_write_errors += 1
+        _can_spool_saturation_alert = True
+        logger.critical(f"[DB-Spool] Falha crítica ao atualizar spool atômico ({spool_path}): {e}")
+        return False
+
+
+def _append_to_disk_spool(records: list[tuple]) -> int:
+    """
+    Persiste registros no armazenamento secundário durável em disco (FIFO) com:
+    - Controle de espaço livre na partição (_MIN_DISK_FREE_BYTES)
+    - Limite máximo de bytes (_MAX_SPOOL_BYTES) e quantidade de frames (_MAX_SPOOL_FRAMES)
+    - Retentativas em caso de falha de I/O (_MAX_SPOOL_WRITE_RETRIES)
+    Retorna a quantidade exata de frames gravados com sucesso no disco.
+    """
+    global _can_spool_saturation_alert, _can_buffer_overflow_alert, _can_spool_write_errors, _can_spooled_frames_total
+    if not records:
+        return 0
+
+    spool_path = _get_spool_path()
+    try:
+        spool_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        _can_spool_write_errors += 1
+        _can_spool_saturation_alert = True
+        _can_buffer_overflow_alert = True
+        logger.critical(f"[DB-Spool] Falha ao criar diretório de spool {spool_path.parent}: {e}")
+        return 0
+
+    # 1. Verifica espaço livre em disco na partição
+    try:
+        usage = shutil.disk_usage(spool_path.parent)
+        if usage.free < _MIN_DISK_FREE_BYTES:
+            _can_spool_saturation_alert = True
+            _can_buffer_overflow_alert = True
+            logger.critical(
+                f"[DB-Spool] ESPAÇO EM DISCO INSUFICIENTE: livre={usage.free} bytes < mínimo={_MIN_DISK_FREE_BYTES} bytes."
+            )
+            return 0
+    except Exception as e:
+        logger.warning(f"[DB-Spool] Não foi possível verificar espaço em disco: {e}")
+
+    # 2. Verifica limites de utilização do arquivo de spool (bytes e contagem de frames)
+    existing_records = _read_spool_records()
+    existing_count = len(existing_records)
+    current_bytes = spool_path.stat().st_size if spool_path.exists() else 0
+
+    if existing_count >= _MAX_SPOOL_FRAMES or current_bytes >= _MAX_SPOOL_BYTES:
+        _can_spool_saturation_alert = True
+        _can_buffer_overflow_alert = True
+        logger.critical(
+            f"[DB-Spool] SATURAÇÃO DO ARMAZENAMENTO SECUNDÁRIO: spool atingiu limite "
+            f"(frames={existing_count}/{_MAX_SPOOL_FRAMES}, bytes={current_bytes}/{_MAX_SPOOL_BYTES})."
+        )
+        return 0
+
+    allowed_by_count = max(0, _MAX_SPOOL_FRAMES - existing_count)
+    lines_to_write: list[str] = []
+    projected_bytes = current_bytes
+    for rec in records[:allowed_by_count]:
+        rec_norm = list(rec[:7]) if len(rec) >= 7 else list(rec) + [uuid.uuid4().hex]
+        line_str = json.dumps(rec_norm) + "\n"
+        line_bytes = len(line_str.encode("utf-8"))
+        if projected_bytes + line_bytes > _MAX_SPOOL_BYTES:
+            _can_spool_saturation_alert = True
+            _can_buffer_overflow_alert = True
+            logger.critical(
+                f"[DB-Spool] Limite de bytes do spool atingido ({projected_bytes + line_bytes} > {_MAX_SPOOL_BYTES})."
+            )
+            break
+        lines_to_write.append(line_str)
+        projected_bytes += line_bytes
+
+    if not lines_to_write:
+        return 0
+
+    # 3. Gravação com retentativas e fsync
+    for attempt in range(1, _MAX_SPOOL_WRITE_RETRIES + 1):
+        try:
+            with open(spool_path, "a", encoding="utf-8") as f:
+                f.writelines(lines_to_write)
+                f.flush()
+                os.fsync(f.fileno())
+            written = len(lines_to_write)
+            _can_spooled_frames_total += written
+            if written < len(records):
+                _can_spool_saturation_alert = True
+                _can_buffer_overflow_alert = True
+            return written
+        except Exception as e:
+            _can_spool_write_errors += 1
+            logger.warning(f"[DB-Spool] Tentativa {attempt}/{_MAX_SPOOL_WRITE_RETRIES} de escrita no spool falhou: {e}")
+
+    _can_spool_saturation_alert = True
+    _can_buffer_overflow_alert = True
+    logger.critical(
+        f"[DB-Spool] FALHA DEFINITIVA DE ESCRITA NO SPOOL EM DISCO após {_MAX_SPOOL_WRITE_RETRIES} tentativas!"
+    )
+    return 0
+
+
+def get_can_buffer_status() -> dict:
+    """Inspeciona estado em tempo real do buffer RAM e do armazenamento secundário (spool) CAN."""
+    spool_path = _get_spool_path()
+    spool_exists = spool_path.exists()
+    spool_bytes = spool_path.stat().st_size if spool_exists else 0
+    spool_frames = len(_read_spool_records()) if spool_exists else 0
+    return {
+        "buffer_size": len(_can_batch),
+        "max_buffer_bound": _MAX_CAN_BUFFER,
+        "spool_frames": spool_frames,
+        "spool_bytes": spool_bytes,
+        "max_spool_frames": _MAX_SPOOL_FRAMES,
+        "max_spool_bytes": _MAX_SPOOL_BYTES,
+        "spooled_frames_total": _can_spooled_frames_total,
+        "recovered_frames_total": _can_recovered_frames_total,
+        "spool_write_errors": _can_spool_write_errors,
+        "dropped_frames": _can_dropped_frames_count,
+        "overflow_alert": _can_buffer_overflow_alert,
+        "spool_saturation_alert": _can_spool_saturation_alert,
+    }
 
 
 async def persist_can_frame(session_id: str, frame: dict) -> None:
-    """Buffer a CAN frame and flush to DB every _BATCH_SIZE frames."""
-    global _can_batch
+    """Buffer a CAN frame in RAM (with automatic spill to durable disk spool if full) and flush to DB."""
+    global _can_batch, _can_dropped_frames_count, _can_buffer_overflow_alert, _can_spool_saturation_alert
 
-    can_id   = frame.get("id", "0x000")
-    dlc      = frame.get("dlc", 0)
-    data     = frame.get("data", [])
-    ts       = frame.get("ts") or _now()
-    source   = CAN_ID_SOURCE.get(can_id, CAN_ID_SOURCE.get(can_id.lower(), "RAW"))
-    data_hex = " ".join(f"{b:02X}" for b in data) if isinstance(data, list) else str(data)
+    can_id    = frame.get("id", "0x000")
+    dlc       = frame.get("dlc", 0)
+    data      = frame.get("data", [])
+    ts        = frame.get("ts") or _now()
+    frame_uid = frame.get("frame_uid") or uuid.uuid4().hex
+    source    = CAN_ID_SOURCE.get(can_id, CAN_ID_SOURCE.get(can_id.lower(), "RAW"))
+    data_hex  = " ".join(f"{b:02X}" for b in data) if isinstance(data, list) else str(data)
 
-    _can_batch.append((session_id, ts, can_id, dlc, data_hex, source))
+    should_flush = False
+    async with _get_can_lock():
+        if len(_can_batch) >= _MAX_CAN_BUFFER:
+            # Tenta primeiro descarregar os frames mais antigos para o armazenamento durável em disco (FIFO)
+            spill_chunk_size = min(len(_can_batch), max(_BATCH_SIZE, 200))
+            to_spill = _can_batch[:spill_chunk_size]
+            spilled = _append_to_disk_spool(to_spill)
+            if spilled > 0:
+                _can_batch = _can_batch[spilled:]
+                logger.warning(
+                    f"[DB] Buffer RAM atingiu {_MAX_CAN_BUFFER}; {spilled} frames transferidos para o spool durável em disco."
+                )
 
-    if len(_can_batch) >= _BATCH_SIZE:
+            # Se mesmo após tentativa de spool o buffer RAM continuar no limite físico, contabiliza perda inevitável
+            if len(_can_batch) >= _MAX_CAN_BUFFER:
+                _can_dropped_frames_count += 1
+                _can_buffer_overflow_alert = True
+                _can_spool_saturation_alert = True
+                _can_batch.pop(0)
+                logger.critical(
+                    f"[DB] CRITICAL BUFFER & SPOOL OVERFLOW: Buffer RAM ({_MAX_CAN_BUFFER}) e Spool em Disco saturados. "
+                    f"Frame mais antigo descartado. Total descartados: {_can_dropped_frames_count}. "
+                    "PERDA INEVITÁVEL DE DADOS DE TELEMETRIA!"
+                )
+        _can_batch.append((session_id, ts, can_id, dlc, data_hex, source, frame_uid))
+        should_flush = len(_can_batch) >= _BATCH_SIZE
+
+    if should_flush:
         await _flush_can_batch()
 
 
+async def _insert_can_records_with_retry(records: list[tuple]) -> bool:
+    """Grava lote de registros CAN no SQLite com proteção contra duplicações (INSERT OR IGNORE por frame_uid)."""
+    if not records:
+        return True
+    normalized = [
+        (r[0], r[1], r[2], r[3], r[4], r[5], r[6] if len(r) >= 7 else uuid.uuid4().hex)
+        for r in records
+    ]
+    for attempt in range(1, _MAX_FLUSH_RETRIES + 1):
+        try:
+            async with get_db() as db:
+                await db.executemany(
+                    "INSERT OR IGNORE INTO can_logs (session_id, timestamp, can_id, dlc, data_hex, source, frame_uid) VALUES (?,?,?,?,?,?,?)",
+                    normalized,
+                )
+                await db.commit()
+            return True
+        except Exception as e:
+            logger.warning(f"Tentativa {attempt}/{_MAX_FLUSH_RETRIES} de gravação do lote CAN falhou: {e}")
+            if attempt < _MAX_FLUSH_RETRIES:
+                await asyncio.sleep(0.05 * attempt)
+    return False
+
+
+async def recover_can_spool() -> int:
+    """
+    Recupera e drena os frames do spool secundário em disco para o SQLite em ordem estrita FIFO.
+    Elimina os dados temporários do spool SOMENTE após confirmação de commit no banco definitivo.
+    """
+    global _can_recovered_frames_total
+    async with _get_flush_lock():
+        spooled = _read_spool_records()
+        if not spooled:
+            return 0
+        ok = await _insert_can_records_with_retry(spooled)
+        if ok:
+            _write_spool_records_atomic([])
+            _can_recovered_frames_total += len(spooled)
+            logger.info(f"[DB-Spool] Recuperados {len(spooled)} frames do spool em disco para o SQLite.")
+            return len(spooled)
+        return 0
+
+
 async def _flush_can_batch() -> None:
-    """Write accumulated CAN frames to the database."""
-    global _can_batch
-    if not _can_batch:
-        return
-    batch = _can_batch
-    _can_batch = []
-    try:
-        async with get_db() as db:
-            await db.executemany(
-                "INSERT INTO can_logs (session_id, timestamp, can_id, dlc, data_hex, source) VALUES (?,?,?,?,?,?)",
-                batch,
-            )
-            await db.commit()
-    except Exception as e:
-        logger.error(f"Failed to flush CAN batch: {e}")
+    """
+    Sincroniza e persiste frames CAN preservando ordem global FIFO:
+    1. Se houver frames no spool em disco, drena o spool primeiro para manter ordem FIFO.
+    2. Em seguida, grava o lote atual da memória RAM.
+    3. Se o SQLite estiver indisponível após _MAX_FLUSH_RETRIES, transfere o lote para o spool em disco.
+    4. Caso o spool em disco também esteja saturado/indisponível, retém em RAM até _MAX_CAN_BUFFER e contabiliza perdas.
+    """
+    global _can_batch, _can_dropped_frames_count, _can_buffer_overflow_alert, _can_recovered_frames_total
+
+    async with _get_flush_lock():
+        async with _get_can_lock():
+            batch = _can_batch
+            _can_batch = []
+
+        spooled = _read_spool_records()
+        if not spooled and not batch:
+            return
+
+        # 1. Se existem dados no spool em disco, precisamos drená-los ANTES do batch atual para preservar FIFO estrito
+        if spooled:
+            spool_ok = await _insert_can_records_with_retry(spooled)
+            if spool_ok:
+                # Elimina os dados temporários somente após confirmação do commit no SQLite
+                _write_spool_records_atomic([])
+                _can_recovered_frames_total += len(spooled)
+                logger.info(f"[DB-Spool] {len(spooled)} frames do spool persistidos e limpos com sucesso.")
+            else:
+                # SQLite continua indisponível: preserva o spool e envia o batch atual para o final do spool
+                logger.critical(
+                    f"[DB] FALHA DEFINITIVA NA PERSISTÊNCIA CAN: {_MAX_FLUSH_RETRIES} tentativas falharam. "
+                    f"Spool ativo ({len(spooled)} frames). Tentando fazer spool de mais {len(batch)} frames."
+                )
+                _can_buffer_overflow_alert = True
+                if batch:
+                    spilled = _append_to_disk_spool(batch)
+                    unspilled = batch[spilled:]
+                    if unspilled:
+                        async with _get_can_lock():
+                            _can_batch = unspilled + _can_batch
+                            if len(_can_batch) > _MAX_CAN_BUFFER:
+                                dropped = len(_can_batch) - _MAX_CAN_BUFFER
+                                _can_dropped_frames_count += dropped
+                                _can_batch = _can_batch[-_MAX_CAN_BUFFER:]
+                                logger.critical(
+                                    f"[DB] CRITICAL OVERFLOW: {dropped} frames descartados por saturação simultânea de RAM e Spool! "
+                                    f"Total descartados: {_can_dropped_frames_count}."
+                                )
+                return
+
+        # 2. Grava o lote atual da RAM no SQLite
+        if batch:
+            batch_ok = await _insert_can_records_with_retry(batch)
+            if not batch_ok:
+                logger.critical(
+                    f"[DB] FALHA DEFINITIVA NA PERSISTÊNCIA CAN: {_MAX_FLUSH_RETRIES} tentativas falharam. "
+                    f"Transferindo {len(batch)} frames para o spool durável em disco!"
+                )
+                _can_buffer_overflow_alert = True
+                spilled = _append_to_disk_spool(batch)
+                unspilled = batch[spilled:]
+                if unspilled:
+                    async with _get_can_lock():
+                        _can_batch = unspilled + _can_batch
+                        if len(_can_batch) > _MAX_CAN_BUFFER:
+                            dropped = len(_can_batch) - _MAX_CAN_BUFFER
+                            _can_dropped_frames_count += dropped
+                            _can_batch = _can_batch[-_MAX_CAN_BUFFER:]
+                            logger.critical(
+                                f"[DB] CRITICAL OVERFLOW: {dropped} frames descartados por saturação simultânea de RAM e Spool! "
+                                f"Total descartados: {_can_dropped_frames_count}."
+                            )
 
 
 async def flush_pending() -> None:
     """Flush any remaining buffered data (called on shutdown or session switch)."""
     await _flush_can_batch()
+
+
+# ─── Device Credentials, Controlled Migration & Immediate Revocation ──────────
+
+_revoked_serials: set[str] = set()
+_revocation_callbacks: list[Callable[[str], Awaitable[None]]] = []
+
+
+def register_revocation_callback(callback: Callable[[str], Awaitable[None]]) -> None:
+    """Registra callback assíncrono para encerrar conexões ativas imediatamente na revogação."""
+    if callback not in _revocation_callbacks:
+        _revocation_callbacks.append(callback)
+
+
+def is_serial_revoked(serial: str) -> bool:
+    """Verificação O(1) em tempo real se um serial teve sua credencial revogada."""
+    if not serial:
+        return False
+    return serial.strip().lower() in _revoked_serials
+
+
+async def is_serial_revoked_async(serial: str) -> bool:
+    """Verifica revogação consultando o SQLite (fonte de verdade entre processos) e o cache em memória."""
+    if not serial:
+        return False
+    clean_serial = serial.strip().lower()
+    try:
+        async with get_db() as db:
+            async with db.execute(
+                "SELECT is_revoked FROM device_credentials WHERE serial = ?",
+                (clean_serial,)
+            ) as cur:
+                row = await cur.fetchone()
+                if row is not None:
+                    if int(row[0]) == 1:
+                        _revoked_serials.add(clean_serial)
+                        return True
+                    else:
+                        _revoked_serials.discard(clean_serial)
+                        return False
+    except Exception:
+        pass
+    return clean_serial in _revoked_serials
+
+
+async def get_all_revoked_serials_async() -> set[str]:
+    """Sincroniza e retorna todos os seriais com credencial revogada no banco."""
+    try:
+        async with get_db() as db:
+            async with db.execute("SELECT serial, is_revoked FROM device_credentials") as cur:
+                rows = await cur.fetchall()
+                for r in rows:
+                    s_clean = str(r[0]).strip().lower()
+                    if int(r[1]) == 1:
+                        _revoked_serials.add(s_clean)
+                    else:
+                        _revoked_serials.discard(s_clean)
+    except Exception:
+        pass
+    return set(_revoked_serials)
+
+
+def hash_device_token(token: str) -> str:
+    """Calcula hash SHA-256 seguro da credencial do dispositivo."""
+    return hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+
+
+async def register_device_credential(
+    serial: str,
+    device_type: str,
+    token: str,
+    auth_level: str = "individual",
+    migration_status: str = "CONFIRMED",
+) -> None:
+    """Registra credencial individual de um dispositivo (armazenada apenas como hash SHA-256)."""
+    clean_serial = serial.strip().lower()
+    t_hash = hash_device_token(token)
+    now = _now()
+    async with get_db() as db:
+        await db.execute(
+            """INSERT INTO device_credentials (serial, device_type, token_hash, auth_level, is_revoked, migration_status, created_at, last_auth_at)
+               VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+               ON CONFLICT(serial) DO UPDATE SET
+                   device_type = excluded.device_type,
+                   token_hash = excluded.token_hash,
+                   auth_level = excluded.auth_level,
+                   is_revoked = 0,
+                   migration_status = excluded.migration_status,
+                   last_auth_at = excluded.last_auth_at""",
+            (clean_serial, device_type, t_hash, auth_level, migration_status, now, now)
+        )
+        await db.commit()
+    _revoked_serials.discard(clean_serial)
+    logger.info(
+        f"[Auth] Credencial individual registrada para serial={clean_serial} "
+        f"(tipo={device_type}, status={migration_status})"
+    )
+
+
+async def provision_device_credential(
+    serial: str,
+    device_type: str,
+    token: Optional[str] = None,
+    require_confirmation: bool = True,
+) -> dict:
+    """
+    Provisiona uma credencial exclusiva para um dispositivo durante a migração controlada.
+    Se require_confirmation=True, inicia em 'PENDING_CONFIRMATION' até o dispositivo autenticar
+    com sua credencial individual pela primeira vez, confirmando a migração.
+    """
+    clean_serial = serial.strip().lower()
+    raw_token = token.strip() if token else f"acd_{clean_serial}_{secrets.token_urlsafe(24)}"
+    mig_status = "PENDING_CONFIRMATION" if require_confirmation else "CONFIRMED"
+    await register_device_credential(
+        serial=clean_serial,
+        device_type=device_type,
+        token=raw_token,
+        auth_level="individual",
+        migration_status=mig_status,
+    )
+    return {
+        "serial": clean_serial,
+        "device_type": device_type,
+        "token": raw_token,
+        "migration_status": mig_status,
+    }
+
+
+async def revoke_device_credential(serial: str) -> bool:
+    """
+    Revoga imediatamente a credencial de um dispositivo:
+    1. Marca no conjunto em memória _revoked_serials (efeito instantâneo em mensagens em trânsito).
+    2. Persiste is_revoked = 1 no SQLite.
+    3. Aciona todos os callbacks registrados no gateway para fechar o socket ativo imediatamente.
+    """
+    clean_serial = serial.strip().lower()
+    _revoked_serials.add(clean_serial)
+    async with get_db() as db:
+        cur = await db.execute(
+            "UPDATE device_credentials SET is_revoked = 1 WHERE serial = ?",
+            (clean_serial,)
+        )
+        await db.commit()
+        revoked = cur.rowcount > 0
+
+    if revoked:
+        logger.warning(f"[Auth] Credencial individual REVOGADA para serial={clean_serial}. Encerrando conexões ativas...")
+    else:
+        logger.warning(f"[Auth] Serial {clean_serial} adicionado à lista de bloqueio imediato.")
+
+    # Notifica imediatamente o gerenciador de WebSockets para desconectar o socket ativo do serial
+    for cb in list(_revocation_callbacks):
+        try:
+            await cb(clean_serial)
+        except Exception as e:
+            logger.error(f"[Auth] Erro ao executar callback de revogação para {clean_serial}: {e}")
+
+    return revoked
+
+
+async def get_device_credential(serial: str) -> Optional[dict]:
+    """Consulta registro de credencial por serial."""
+    clean_serial = serial.strip().lower()
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT * FROM device_credentials WHERE serial = ?",
+            (clean_serial,)
+        ) as cur:
+            row = await cur.fetchone()
+            return _row_to_dict(row) if row else None
+
+
+async def is_legacy_auth_enabled() -> bool:
+    """Verifica se o modo de transição com WS_TOKEN global ainda está habilitado."""
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT value FROM security_settings WHERE key = 'legacy_ws_token_enabled'"
+        ) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return True
+            return str(row[0]) == "1"
+
+
+async def set_legacy_auth_enabled(enabled: bool, force: bool = False) -> tuple[bool, str]:
+    """
+    Ativa ou desativa o suporte ao token global legado (WS_TOKEN).
+    Para desativar (enabled=False) sem force=True, exige que exista pelo menos um dispositivo
+    provisionado e que TODOS os dispositivos provisionados estejam com migration_status='CONFIRMED'
+    (nenhum pendente de confirmação).
+    """
+    if not enabled and not force:
+        async with get_db() as db:
+            async with db.execute(
+                "SELECT COUNT(*) FROM device_credentials WHERE is_revoked = 0"
+            ) as cur:
+                total_prov = (await cur.fetchone())[0]
+            async with db.execute(
+                "SELECT COUNT(*) FROM device_credentials WHERE is_revoked = 0 AND migration_status != 'CONFIRMED'"
+            ) as cur:
+                pending_prov = (await cur.fetchone())[0]
+
+        if total_prov == 0:
+            return False, "no_provisioned_devices"
+        if pending_prov > 0:
+            return False, f"pending_migrations:{pending_prov}"
+
+    val = "1" if enabled else "0"
+    now = _now()
+    async with get_db() as db:
+        await db.execute(
+            """INSERT INTO security_settings (key, value, updated_at) VALUES ('legacy_ws_token_enabled', ?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at""",
+            (val, now)
+        )
+        await db.commit()
+    logger.info(f"[Auth] Modo legado WS_TOKEN alterado para enabled={enabled} (force={force})")
+    return True, "updated"
+
+
+async def get_migration_status_summary() -> dict:
+    """Retorna panorama completo do provisionamento individual e status do modo legado."""
+    legacy_enabled = await is_legacy_auth_enabled()
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT serial, device_type, auth_level, is_revoked, migration_status, created_at, last_auth_at FROM device_credentials ORDER BY serial"
+        ) as cur:
+            rows = await cur.fetchall()
+            creds = [_row_to_dict(r) for r in rows]
+
+    confirmed = [c for c in creds if not c["is_revoked"] and c.get("migration_status") == "CONFIRMED"]
+    pending = [c for c in creds if not c["is_revoked"] and c.get("migration_status") != "CONFIRMED"]
+    revoked = [c for c in creds if c["is_revoked"]]
+    return {
+        "legacy_ws_token_enabled": legacy_enabled,
+        "total_credentials": len(creds),
+        "confirmed_count": len(confirmed),
+        "pending_confirmation_count": len(pending),
+        "revoked_count": len(revoked),
+        "ready_to_disable_legacy": len(confirmed) > 0 and len(pending) == 0,
+        "devices": creds,
+    }
+
+
+async def verify_device_authentication(serial: str, presented_token: Optional[str]) -> tuple[bool, str]:
+    """
+    Valida autenticação do dispositivo:
+    1. Rejeita imediatamente se o serial estiver revogado (_revoked_serials ou banco).
+    2. Se possuir credencial individual registrada:
+       - Valida hash SHA-256 em tempo constante (secrets.compare_digest).
+       - Se válido e estava em 'PENDING_CONFIRMATION', promove automaticamente para 'CONFIRMED'.
+       - Se inválido e estiver em 'PENDING_CONFIRMATION' com modo legado ativo, permite transição controlada;
+         caso já esteja 'CONFIRMED', bloqueia estritamente qualquer outro token (inclusive o legado).
+    3. Para dispositivos ainda sem credencial individual, só aceita WS_TOKEN se legacy_ws_token_enabled=True.
+    """
+    from app.config import WS_TOKEN
+    clean_serial = serial.strip().lower() if serial else ""
+    if not presented_token:
+        return False, "missing_token"
+
+    # 1. Verifica se existe credencial individual registrada para este serial
+    cred = await get_device_credential(clean_serial)
+    if cred:
+        if cred.get("is_revoked", 0) == 1:
+            _revoked_serials.add(clean_serial)
+            logger.warning(f"[Auth] Acesso negado para serial={clean_serial}: credencial revogada.")
+            return False, "revoked"
+        else:
+            _revoked_serials.discard(clean_serial)
+
+        presented_hash = hash_device_token(presented_token)
+        if secrets.compare_digest(presented_hash, cred.get("token_hash", "")):
+            now = _now()
+            async with get_db() as db:
+                await db.execute(
+                    "UPDATE device_credentials SET last_auth_at = ?, migration_status = 'CONFIRMED' WHERE serial = ?",
+                    (now, clean_serial)
+                )
+                await db.commit()
+            return True, "individual"
+
+        # Se o dispositivo foi recém-provisionado (PENDING_CONFIRMATION) e ainda usa o token legado antes do reflash:
+        if cred.get("migration_status") == "PENDING_CONFIRMATION" and await is_legacy_auth_enabled():
+            if secrets.compare_digest(presented_token, WS_TOKEN):
+                logger.warning(
+                    f"[Auth] Serial={clean_serial} conectou com token legado (migração pendente de confirmação)."
+                )
+                return True, "legacy_migrating"
+
+        logger.warning(f"[Auth] Acesso negado para serial={clean_serial}: token individual incorreto.")
+        return False, "individual_token_mismatch"
+
+    # 2. Verifica se o token apresentado pertence a OUTRO dispositivo (impede uso cruzado de credenciais)
+    presented_hash = hash_device_token(presented_token)
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT serial FROM device_credentials WHERE token_hash = ?",
+            (presented_hash,)
+        ) as cur:
+            other_row = await cur.fetchone()
+            if other_row and str(other_row[0]).strip().lower() != clean_serial:
+                logger.warning(
+                    f"[Auth] Bloqueada tentativa de usar credencial individual de {other_row[0]} no serial={clean_serial}!"
+                )
+                return False, "cross_device_credential_abuse"
+
+    # 3. Modo de transição com token global legado (somente se habilitado)
+    if not await is_legacy_auth_enabled():
+        logger.warning(f"[Auth] Acesso negado para serial={clean_serial}: modo legado WS_TOKEN está desativado.")
+        return False, "legacy_disabled"
+
+    if secrets.compare_digest(presented_token, WS_TOKEN):
+        return True, "legacy"
+
+    return False, "invalid_token"
 
 
 async def persist_osc_capture(session_id: str, burst: dict) -> None:

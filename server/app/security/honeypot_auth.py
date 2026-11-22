@@ -13,6 +13,7 @@ Arquitetura de Defesa:
 
 import hmac
 import hashlib
+import ipaddress
 import json
 import logging
 import secrets
@@ -33,6 +34,7 @@ from app.config import (
     HONEYPOT_BAN_SECONDS,
     MAX_AUTH_ATTEMPTS,
     SECRET_KEY,
+    TRUSTED_PROXY_CIDRS,
 )
 
 logger = logging.getLogger("cardiag.security.honeypot")
@@ -52,26 +54,43 @@ def get_client_ip(request: Request) -> str:
     3. X-Real-IP
     4. Socket direto do cliente
     """
-    # 1. Cloudflare
-    cf_ip = request.headers.get("CF-Connecting-IP")
-    if cf_ip and cf_ip.strip():
-        return cf_ip.strip().split(",")[0].strip()
+    peer = request.client.host if request.client and request.client.host else "127.0.0.1"
+    try:
+        peer_ip = ipaddress.ip_address(peer)
+    except ValueError:
+        # Test clients and unusual ASGI transports may use a non-IP peer name.
+        return peer
 
-    # 2. X-Forwarded-For
-    xff = request.headers.get("X-Forwarded-For")
-    if xff and xff.strip():
-        return xff.split(",")[0].strip()
+    # Forwarding headers are user-controlled unless the immediate peer is trusted.
+    if not any(peer_ip in network for network in TRUSTED_PROXY_CIDRS):
+        return str(peer_ip)
 
-    # 3. X-Real-IP
-    x_real_ip = request.headers.get("X-Real-IP")
-    if x_real_ip and x_real_ip.strip():
-        return x_real_ip.strip()
+    def parse_ip(value: str):
+        try:
+            return ipaddress.ip_address(value.strip())
+        except ValueError:
+            return None
 
-    # 4. Socket direto
-    if request.client and request.client.host:
-        return request.client.host
+    cf_ip = request.headers.get("CF-Connecting-IP", "").strip()
+    if cf_ip and "," not in cf_ip:
+        parsed = parse_ip(cf_ip)
+        if parsed:
+            return str(parsed)
 
-    return "127.0.0.1"
+    # Walk XFF from the trusted socket inward, skipping trusted proxy hops.
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        chain = [parse_ip(value) for value in xff.split(",")]
+        if chain and all(chain):
+            for address in reversed(chain):
+                if not any(address in network for network in TRUSTED_PROXY_CIDRS):
+                    return str(address)
+            return str(chain[0])
+
+    real_ip = parse_ip(request.headers.get("X-Real-IP", ""))
+    if real_ip:
+        return str(real_ip)
+    return str(peer_ip)
 
 
 # ─── Gerenciamento de Usuários (usuarios.json) ─────────────────────────────────

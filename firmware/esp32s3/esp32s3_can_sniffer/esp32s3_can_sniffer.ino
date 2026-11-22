@@ -230,8 +230,34 @@ int parseHexResponse(String response) {
 // ----------------------------------------------------------------------------
 // TASK CORE 0: Network
 // ----------------------------------------------------------------------------
+String extractWsToken() {
+#ifdef SECRET_WS_TOKEN
+    return String(SECRET_WS_TOKEN);
+#else
+    String rawUrl = String(WS_URL);
+    int idx = rawUrl.indexOf("token=");
+    if (idx != -1) {
+        String sub = rawUrl.substring(idx + 6);
+        int amp = sub.indexOf('&');
+        if (amp != -1) sub = sub.substring(0, amp);
+        return sub;
+    }
+    return "";
+#endif
+}
+
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
-    if (type == WStype_TEXT) {
+    if (type == WStype_CONNECTED) {
+        JsonDocument authDoc;
+        authDoc["type"] = "auth";
+        authDoc["token"] = extractWsToken();
+        authDoc["serial"] = "s2001";
+        authDoc["device_type"] = "Scanner_CAN";
+        authDoc["fw_version"] = "v2.5.2";
+        String authOut;
+        serializeJson(authDoc, authOut);
+        webSocket.sendTXT(authOut);
+    } else if (type == WStype_TEXT) {
         JsonDocument doc;
         DeserializationError err = deserializeJson(doc, payload);
         if (!err) {
@@ -311,7 +337,7 @@ void TaskNetwork(void *pvParameters) {
         vTaskDelay(500 / portTICK_PERIOD_MS); 
     }
     
-    webSocket.begin(WS_HOST, WS_PORT, WS_URL);
+    webSocket.begin(WS_HOST, WS_PORT, "/ws/esp32?type=Scanner_CAN&serial=s2001");
     webSocket.onEvent(webSocketEvent);
     webSocket.setReconnectInterval(5000);
 
