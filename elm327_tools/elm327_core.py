@@ -46,6 +46,10 @@ class ELM327Connection:
         self.ser: Optional[serial.Serial] = None
         self.connected_address: str = ""
         self.current_header: str = "7DF"
+        self.active_protocol_code: str = "0"
+        self.active_protocol_name: str = "UNCONFIRMED"
+        self.active_protocol_family: str = "UNKNOWN"
+        self.evidence_log: List[Dict[str, object]] = []
 
     def connect(self) -> Tuple[bool, str]:
         target = self.target.strip()
@@ -144,14 +148,45 @@ class ELM327Connection:
                 pass
             self.ser = None
 
+    def _record_evidence(self, cmd: str, resp: str, elapsed_ms: float) -> str:
+        u = resp.strip().upper()
+        if not u:
+            res_tag = "TIMEOUT_EMPTY"
+        elif "BUFFER FULL" in u:
+            res_tag = "ERROR_BUFFER_FULL"
+        elif "BUS INIT" in u and "ERROR" in u:
+            res_tag = "ERROR_BUS_INIT"
+        elif "UNABLE TO CONNECT" in u:
+            res_tag = "ERROR_UNABLE_TO_CONNECT"
+        elif "NO DATA" in u:
+            res_tag = "NO_DATA"
+        elif "?" in u:
+            res_tag = "INVALID_COMMAND"
+        else:
+            res_tag = "POSITIVE_RESPONSE"
+        self.evidence_log.append(
+            {
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "command_sent": cmd.strip(),
+                "response_received": resp,
+                "protocol_code": self.active_protocol_code,
+                "protocol_identified": self.active_protocol_name,
+                "protocol_family": self.active_protocol_family,
+                "header": self.current_header,
+                "latency_ms": round(elapsed_ms, 1),
+                "result": res_tag,
+            }
+        )
+        return resp
+
     def send_raw(self, cmd: str, timeout: Optional[float] = None) -> str:
-        """Envia um comando AT ou Hex para o ELM327 e aguarda até o prompt '>'."""
+        """Envia um comando AT ou Hex para o ELM327/Vgate, aguarda '>' e grava evidência."""
         wait = timeout if timeout is not None else self.timeout
         payload = (cmd.strip() + "\r").encode("ascii", errors="ignore")
+        t_start = time.perf_counter()
 
         if self.conn_type in ("rfcomm_socket", "tcp") and self.sock:
             self.sock.settimeout(wait)
-            # Limpa buffer pendente rápido
             self.sock.setblocking(False)
             try:
                 while self.sock.recv(1024):
@@ -175,7 +210,8 @@ class ELM327Connection:
                     break
                 except Exception:
                     break
-            return self._clean_response(buf.decode("ascii", errors="ignore"), cmd)
+            cleaned = self._clean_response(buf.decode("ascii", errors="ignore"), cmd)
+            return self._record_evidence(cmd, cleaned, (time.perf_counter() - t_start) * 1000.0)
 
         elif self.conn_type == "serial" and self.ser:
             self.ser.timeout = wait
@@ -191,9 +227,10 @@ class ELM327Connection:
                     buf.extend(chunk)
                     if b">" in buf:
                         break
-            return self._clean_response(buf.decode("ascii", errors="ignore"), cmd)
+            cleaned = self._clean_response(buf.decode("ascii", errors="ignore"), cmd)
+            return self._record_evidence(cmd, cleaned, (time.perf_counter() - t_start) * 1000.0)
 
-        return "ERROR: NOT CONNECTED"
+        return self._record_evidence(cmd, "ERROR: NOT CONNECTED", 0.0)
 
     @staticmethod
     def _clean_response(raw: str, sent_cmd: str) -> str:
@@ -208,16 +245,28 @@ class ELM327Connection:
             lines.append(s)
         return "\n".join(lines)
 
+    @property
+    def is_kline(self) -> bool:
+        return self.active_protocol_family == "KLINE" or self.active_protocol_code in ("3", "4", "5")
+
+    def _update_protocol_state(self, dpn_raw: str, dp_raw: str = "") -> None:
+        code = dpn_raw.strip().upper()
+        if code.startswith("A") and len(code) == 2:
+            code = code[1:]
+        self.active_protocol_code = code or "0"
+        self.active_protocol_name = dp_raw.strip() or f"ATSP{code}"
+        if code in ("3", "4", "5"):
+            self.active_protocol_family = "KLINE"
+        elif code in ("6", "8"):
+            self.active_protocol_family = "CAN_11B"
+        elif code in ("7", "9", "A"):
+            self.active_protocol_family = "CAN_29B"
+        elif code in ("1", "2"):
+            self.active_protocol_family = "J1850"
+
     def initialize_elm(self, protocol: str = "0") -> Dict[str, str]:
         """
-        Inicializa o ELM327 para diagnóstico profissional:
-        - ATZ (Reset)
-        - ATE0 (Echo Off)
-        - ATL0 (Linefeeds Off)
-        - ATS0 (Spaces Off para parsing ou ATS1 conforme necessidade)
-        - ATH1 (Headers On para identificar qual ECU respondeu: 7E8, 7E9, 7EA, 7EB, 7EC)
-        - ATAL (Allow Long messages)
-        - ATSP{protocol} (0 = Auto)
+        Inicializa o ELM327 / Vgate para diagnóstico profissional sem forçar CAN antes da detecção.
         """
         info = {}
         info["ATZ"] = self.send_raw("ATZ", timeout=2.5)
@@ -231,7 +280,99 @@ class ELM327Connection:
         info["AT@1"] = self.send_raw("AT@1", timeout=1.0)
         info["ATRV"] = self.send_raw("ATRV", timeout=1.0)
         info["ATSP"] = self.send_raw(f"ATSP{protocol}", timeout=1.5)
+        self._update_protocol_state(protocol)
         return info
+
+    def init_kline_protocol(self, mode: str = "kwp_fast", target_addr: str = "10", functional: bool = True) -> Dict[str, object]:
+        """
+        Inicialização independente para K-Line no Pino 7:
+          - mode='iso9141'   -> ATSP3 (ISO 9141-2 5-Baud Init, Header 68 6A F1)
+          - mode='kwp_5baud' -> ATSP4 (ISO 14230-4 KWP 5-Baud Init, Header C2 33 F1 ou 81 <target> F1)
+          - mode='kwp_fast'  -> ATSP5 (ISO 14230-4 KWP Fast Init, Header C1 33 F1 ou 81 <target> F1)
+        """
+        self.send_raw("ATAR", timeout=1.0)
+        if mode == "iso9141":
+            atsp = "3"
+            hdr = "686AF1" if functional else f"48{target_addr.upper()}F1"
+        elif mode == "kwp_5baud":
+            atsp = "4"
+            hdr = "C233F1" if functional else f"81{target_addr.upper()}F1"
+        else:
+            atsp = "5"
+            hdr = "C133F1" if functional else f"81{target_addr.upper()}F1"
+
+        self.send_raw(f"ATSP{atsp}", timeout=1.0)
+        self.send_raw("ATIB10", timeout=1.0)
+        self.send_raw("ATSW96", timeout=1.0)
+        self.send_raw("ATST64", timeout=1.0)
+        self.send_raw(f"ATSH{hdr}", timeout=1.0)
+        self.current_header = hdr
+
+        if atsp == "5":
+            self.send_raw("ATFI", timeout=4.0)
+        r_probe = self.send_raw("0100", timeout=10.0)
+        ok = "4100" in r_probe.replace(" ", "").upper()
+        if not ok and not functional:
+            r_sess = self.send_raw("1089", timeout=6.0)
+            if "5089" in r_sess.replace(" ", "").upper() or "7F10" in r_sess.replace(" ", "").upper():
+                ok = True
+                r_probe = r_sess
+
+        kw = self.send_raw("ATKW", timeout=1.0)
+        dp = self.send_raw("ATDP", timeout=1.0)
+        dpn = self.send_raw("ATDPN", timeout=1.0)
+        self._update_protocol_state(dpn, dp)
+        return {
+            "mode": mode,
+            "atsp": atsp,
+            "header": hdr,
+            "success": ok,
+            "keywords": kw,
+            "atdp": dp,
+            "atdpn": dpn,
+            "response": r_probe,
+        }
+
+    def detect_and_confirm_protocol(self) -> Dict[str, object]:
+        """
+        Detecta e confirma automaticamente o protocolo real (testando CAN 11b/29b e depois
+        inicializações independentes K-Line: KWP Fast, KWP 5-Baud e ISO 9141-2).
+        """
+        for can_code in ("6", "7", "8"):
+            self.send_raw("ATAR", timeout=1.0)
+            self.send_raw(f"ATSP{can_code}", timeout=1.0)
+            r = self.send_raw("0100", timeout=2.5)
+            if "4100" in r.replace(" ", "").upper():
+                dp = self.send_raw("ATDP", timeout=1.0)
+                dpn = self.send_raw("ATDPN", timeout=1.0)
+                self._update_protocol_state(dpn, dp)
+                return {
+                    "confirmed": True,
+                    "protocol_code": self.active_protocol_code,
+                    "protocol_name": self.active_protocol_name,
+                    "family": self.active_protocol_family,
+                    "response": r,
+                }
+
+        for k_mode in ("kwp_fast", "kwp_5baud", "iso9141"):
+            res = self.init_kline_protocol(mode=k_mode, functional=True)
+            if res.get("success"):
+                return {
+                    "confirmed": True,
+                    "protocol_code": self.active_protocol_code,
+                    "protocol_name": self.active_protocol_name,
+                    "family": "KLINE",
+                    "keywords": res.get("keywords"),
+                    "response": res.get("response"),
+                }
+
+        return {
+            "confirmed": False,
+            "protocol_code": "0",
+            "protocol_name": "UNABLE_TO_CONFIRM_PROTOCOL",
+            "family": "NONE",
+            "response": "NO DATA",
+        }
 
     def audit_elm327_chip(self) -> Dict[str, object]:
         """
@@ -292,8 +433,17 @@ class ELM327Connection:
         clean_h = header_hex.replace("0x", "").replace(" ", "").upper()
         if clean_h == self.current_header:
             return
+        # Proteção K-Line: nunca envia ATCRA / ATFCSH de 11-bit CAN nem 7DF se estiver em K-Line!
+        if self.is_kline:
+            if clean_h in ("7DF", "7E0"):
+                clean_h = "686AF1" if self.active_protocol_code == "3" else (
+                    "C233F1" if self.active_protocol_code == "4" else "C133F1"
+                )
+            self.send_raw(f"ATSH{clean_h}", timeout=1.0)
+            self.current_header = clean_h
+            return
+
         self.send_raw(f"ATSH{clean_h}", timeout=1.0)
-        # Se for endereço físico 7E0..7E7, configura Flow Control correspondente
         if len(clean_h) == 3 and clean_h.startswith("7E") and clean_h != "7DF":
             try:
                 tx_id = int(clean_h, 16)

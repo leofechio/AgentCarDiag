@@ -199,22 +199,20 @@ def run_vlinker_audit(elm: ELM327Connection) -> None:
 
 
 def run_vehicle_identification(elm: ELM327Connection) -> None:
-    print("\n🚗 [2] IDENTIFICAÇÃO DO VEÍCULO, PROTOCOLO E CHASSI (VIN)")
+    print("\n🚗 [2] IDENTIFICAÇÃO DO VEÍCULO, PROTOCOLO CONFIRMADO E CHASSI (VIN)")
     print("=" * 72)
     elm.initialize_elm("0")
-    # Dispara 0100 para travar no protocolo do carro
-    r0100 = elm.send_raw("0100", timeout=4.0)
-    dp = elm.send_raw("ATDP", timeout=1.0)
-    dpn = elm.send_raw("ATDPN", timeout=1.0)
+    proto_res = elm.detect_and_confirm_protocol()
     rv = elm.send_raw("ATRV", timeout=1.0)
 
-    print(f"• Protocolo Detectado: {dp} (Código {dpn})")
-    print(f"• Tensão da Bateria  : {rv}")
-    print(f"• Resposta 0100      : {r0100}")
+    print(f"• Protocolo Confirmado: {proto_res.get('protocol_name')} (Código {proto_res.get('protocol_code')} | Família: {proto_res.get('family')})")
+    if proto_res.get("keywords"):
+        print(f"• Key Words K-Line    : {proto_res.get('keywords')}")
+    print(f"• Tensão da Bateria   : {rv}")
+    print(f"• Resposta de Sonda   : {proto_res.get('response')}")
 
-    # Tenta ler VIN via Modo 09 02 e via UDS 22 F1 90
     vin_str = ""
-    raw_0902 = elm.send_raw("0902", timeout=3.0)
+    raw_0902 = elm.send_raw("0902", timeout=4.0)
     b_0902 = extract_hex_bytes_from_elm_lines(raw_0902, "4902")
     if b_0902:
         ascii_chars = [chr(b) for b in b_0902 if 32 <= b <= 126]
@@ -224,26 +222,36 @@ def run_vehicle_identification(elm: ELM327Connection) -> None:
             vin_str = m.group(0)
 
     if not vin_str:
-        elm.set_header("7E0")
-        raw_uds_vin = elm.send_raw("22F190", timeout=2.5)
-        b_uds = extract_hex_bytes_from_elm_lines(raw_uds_vin, "62F190")
-        if b_uds:
-            candidate = "".join(chr(b) for b in b_uds if 32 <= b <= 126)
-            m = re.search(r"[A-HJ-NPR-Z0-9]{17}", candidate)
-            if m:
-                vin_str = m.group(0)
-        elm.set_header("7DF")
+        if elm.is_kline:
+            # Em K-Line NUNCA envia ATSH 7E0! Usa serviço KWP2000 1A 90 (VIN) ou 1A 9B (ECU ID)
+            raw_kwp_vin = elm.send_raw("1A90", timeout=3.5)
+            b_kwp = extract_hex_bytes_from_elm_lines(raw_kwp_vin, "5A90")
+            if b_kwp:
+                candidate = "".join(chr(b) for b in b_kwp if 32 <= b <= 126)
+                m = re.search(r"[A-HJ-NPR-Z0-9]{17}", candidate)
+                if m:
+                    vin_str = m.group(0)
+        else:
+            elm.set_header("7E0")
+            raw_uds_vin = elm.send_raw("22F190", timeout=2.5)
+            b_uds = extract_hex_bytes_from_elm_lines(raw_uds_vin, "62F190")
+            if b_uds:
+                candidate = "".join(chr(b) for b in b_uds if 32 <= b <= 126)
+                m = re.search(r"[A-HJ-NPR-Z0-9]{17}", candidate)
+                if m:
+                    vin_str = m.group(0)
+            elm.set_header("7DF")
 
     if vin_str:
-        print(f"• VIN (Chassi) Lido  : {vin_str}")
+        print(f"• VIN (Chassi) Lido   : {vin_str}")
         try:
             from app.vin_decoder import decode_vin_Offline_or_Online
             decoded = decode_vin_Offline_or_Online(vin_str)
-            print(f"• Decodificação VIN  : {json.dumps(decoded, ensure_ascii=False)}")
+            print(f"• Decodificação VIN   : {json.dumps(decoded, ensure_ascii=False)}")
         except Exception:
             pass
     else:
-        print("• VIN (Chassi) Lido  : Não disponibilizado digitalmente pela ECU (comum em modelos pré-2010 ou Euro 3/4)")
+        print("• VIN (Chassi) Lido   : Não disponibilizado digitalmente pela ECU (comum em K-Line Euro 3/4)")
 
 
 def run_full_dtc_scan(elm: ELM327Connection) -> None:

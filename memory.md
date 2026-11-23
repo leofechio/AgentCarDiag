@@ -1347,3 +1347,28 @@ Validado em campo no notebook Windows via Python `bleak` sem necessidade de pare
 - **Permissões de Sistema Operacional:**
   - **Linux:** Regra `/etc/udev/rules.d/99-hantek1008.rules` (`ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0783", ATTR{idProduct}=="5725", MODE="0666"`).
   - **Windows (Notebook de Trabalho):** Ao plugar o Hantek 1008C, abrir o utilitário **Zadig**, selecionar o dispositivo **`YDJ-2088 (0783:5725)`** e instalar o driver **`WinUSB`** (ou `libusb-win32`), permitindo que o Python (`pyusb` / `libusb`) acesse o osciloscópio diretamente sem bloqueio do driver HID antigo do Windows.
+
+---
+
+## 49. Revisão Pericial do Módulo Vgate (`vlinker_diag.py`, `full_vehicle_scan.py`, `elm327_core.py`)
+
+Implementadas as 6 correções arquiteturais fundamentais para separação determinística entre redes **CAN** e **K-Line** no Vgate vLinker MC+ (e adaptadores ELM327 `PIC18F25K80`):
+
+1. **Inicialização Independente para ISO 9141-2, KWP 5-Baud e KWP Fast Init (`VLinkerBLE` & `ELM327Connection`):**
+   - `init_iso9141_5baud()` (`--init-iso9141`): Configura `ATSP3`, `ATIB10`, `ATSW96`, `ATST64`, header funcional `68 6A F1` (ou físico `48 <target> F1`), dispara `01 00` com timeout de 12s e valida as *Key Words* via `ATKW`.
+   - `init_kwp2000_5baud()` (`--init-kwp-5baud`): Configura `ATSP4`, `ATIB10`, `ATSW96`, `ATST64`, header funcional `C2 33 F1` (ou físico `81 <target> F1`), dispara `01 00` (com fallback para sessão nativa `10 89` em módulos físicos como ABS `0x28`) e lê `ATKW`.
+   - `init_kwp2000_fast()` (`--init-kwp-fast`): Configura `ATSP5`, `ATIB10`, `ATSW96`, `ATST64`, header físico `81 <target> F1` (ou funcional `C1 33 F1`), executa pulso de wakeup `ATFI` seguido de `01 00` / `10 89` e lê `ATKW`.
+2. **Handshake Cirúrgico Protocolo-Consciente (`run_quick_handshake` / `--handshake`):**
+   - Corrigido para **jamais forçar `ATSH 7E0`, `ATCRA 7E8` ou `ATSH 7DF`** quando o protocolo detectado/ativo for K-Line (`ATSP 3/4/5`).
+   - Em K-Line, mantém os cabeçalhos de 3 bytes da K-Line ativos e utiliza `09 02` com fallback KWP2000 `1A 90` (VIN) / `1A 9B` (VAG Part Number) e `03` com fallback KWP2000 `18 00 FF 00`.
+3. **Identificação Automática e Confirmação Determinística do Protocolo (`detect_and_confirm_protocol` / `--detect-protocol`):**
+   - Sonda de forma ordenada os barramentos CAN (`ATSP6` 11-bit 500k $\rightarrow$ `ATSP7` 29-bit 500k $\rightarrow$ `ATSP8` 11-bit 250k) e, caso não haja resposta CAN, executa as 3 inicializações independentes de K-Line no Pino 7 (`ATSP5` KWP Fast $\rightarrow$ `ATSP4` KWP 5-Baud $\rightarrow$ `ATSP3` ISO 9141-2), confirmando o protocolo com `ATDP`, `ATDPN` e `ATKW`.
+4. **Testes Independentes de CAN e K-Line (`--test-can` e `--test-kline`):**
+   - `python3 vlinker_diag.py --test-can`: Executa bateria isolada nos Pinos 6/14 (`ATSP6`, `ATSP7`, `ATSP8`) testando OBD (`01 00`) e UDS (`10 03`).
+   - `python3 vlinker_diag.py --test-kline --kline-addr 10 --kline-pin 7`: Executa bateria isolada no Pino 7 testando KWP Fast Físico (`81 10 F1`), KWP Fast Funcional (`C1 33 F1`), KWP 5-Baud (`C2 33 F1`) e ISO 9141-2 (`68 6A F1`).
+5. **Registros Periciais de Evidência (`evidence_logs/*.json`):**
+   - Cada comando enviado por `VLinkerBLE.cmd()` e `ELM327Connection.send_raw()` gera um registro de auditoria contendo: `timestamp_utc`, `command_sent`, `response_received`, `protocol_code`, `protocol_identified`, `protocol_family`, `physical_pins`, `tx_header`, `latency_ms` e `result` (`POSITIVE_RESPONSE`, `NEGATIVE_RESPONSE_NRC`, `NO_DATA`, `ERROR_BUS_INIT`, `ERROR_BUFFER_FULL`, `TIMEOUT`).
+6. **Separação Estrita entre K-Line no Pino 7 vs K-Line Multiplexada em Outros Pinos (`verify_kline_pin_capability` & `--show-kline-pins`):**
+   - O transceiver ISO 9141 / KWP2000 do Vgate vLinker MC+ está conectado **exclusivamente ao Pino 7** (o Pino 1 é transceiver `SW-CAN` GM e os Pinos 3/11 são transceiver diferencial `MS-CAN` Ford).
+   - Catálogo `KLINE_PIN_TOPOLOGY` integrado ao `vlinker_diag.py` e ao `full_vehicle_scan.py` (`--profile vag_b6_kline`, `bmw_e46_kline`, `fiat_alfa_psa_legacy_kline`, `mercedes_sprinter_w901_w906_kline`) separa automaticamente os módulos nativos do Pino 7 dos módulos em pinos multiplexados (Pino 8 no BMW E46; Pinos 1, 3, 9, 12, 13 em Fiat/Alfa/Sprinter legada), indicando exatamente qual cabo adaptador/ponte física usar.
+
