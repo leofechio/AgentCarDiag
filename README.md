@@ -48,24 +48,44 @@ Usada quando é necessário multiplexar pinos OBD-II (K-Line fora do pino 7), KW
   - [`dbscar7/cli.py`](dbscar7/cli.py): CLI rápido (`--ble`, `--port`, `--baud`, `--kline`, `--raw`).
   - [`dbscar7/OPCODES.md`](dbscar7/OPCODES.md): Tabela completa dos 185 opcodes extraídos da `libCOMM_ABSTRACT_LAYER.so`.
 
-### C. Osciloscópio Automotivo de 8 Canais — Hantek 1008C (`USB 0783:5725` / `YDJ-2088`)
-Captura física de sinais analógicos e PWM (CKP/CMP, Injetores, Ignição Primária/Secundária, Compressão Relativa, Ripple do Alternador, Rede CAN física):
+### C. Osciloscópio Automotivo de 8 Canais — Hantek 1008C (`USB 0783:5725` / `YDJ-2088`) & Mini-Tela Gráfica Ao Vivo no Chat
+Captura física 100% real (zero simulação) de sinais analógicos e PWM (CKP/CMP, Injetores, Ignição, Bomba de Alta HPFP, MAF/MAP, Sonda Lambda, Compressão Relativa, Ripple do Alternador, Rede CAN física):
 - **Scripts Prontos em [`hantek_tools/`](hantek_tools/):**
-  - [`hantek_tools/hantek1008_driver.py`](hantek_tools/hantek1008_driver.py): Driver PyUSB/libusb com autocalibração dinâmica de Zero Offset nos 8 canais (`CH1..CH8`), sem assertions rígidas de EEPROM, suporte a atenuador `20:1 (HT201)` e cálculo automático de `Vmin`, `Vmax`, `Vmean`, `Vpp`, `Vrms`, `Duty %` e `Freq Hz`.
-  - [`hantek_tools/hantek_cli.py`](hantek_tools/hantek_cli.py):
-    - Captura Burst no terminal + gravação no SQLite (`osc_captures`):
-      `python hantek_tools/hantek_cli.py --capture --ch 1 2 3 4 --atten 1 1 1 1 --out capture.json`
-    - Streaming ao vivo para a aba **Osciloscópio** do painel Web:
-      `python hantek_tools/hantek_cli.py --ws ws://127.0.0.1:8000/ws/hardware --ch 1 2`
-  - [`hantek_tools/hantek_widget_gen.py`](hantek_tools/hantek_widget_gen.py):
-    - **Mini-Tela Gráfica Dinâmica Inline no Chat (`<agent-embed>`):** Sempre que o usuário pedir para monitorar ou analisar um canal do osciloscópio ou sensor, gere o JSON de captura com `hantek_cli.py --out`, construa o widget HTML interativo com `hantek_widget_gen.py`, salve como Artifact HTML (`UserFacing: true`) e exiba a mini-tela gráfica dinâmica diretamente dentro da resposta do chat usando `<agent-embed src="file:///<artifact_path>/hantek_live_scope_widget.html"></agent-embed>`.
-- **Configuração de Driver USB:**
-  - **Linux:** Regra `/etc/udev/rules.d/99-hantek1008.rules` (`ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0783", ATTR{idProduct}=="5725", MODE="0666"`).
-  - **Windows:** Usar o **Zadig** para associar o dispositivo `YDJ-2088 (0783:5725)` ao driver `WinUSB` ou `libusb-win32`.
+  1. [`hantek_tools/hantek1008_driver.py`](hantek_tools/hantek1008_driver.py): Driver PyUSB/libusb calibrado em **400 kHz** (`200 amostras/div`), ganho calibrado (`0.010179 V/count`), autocalibração obrigatória das 3 escalas do STM32 (`0.02`, `0.125`, `1.0`) e proteção de `FACTORY_OPEN_ZERO` (não perde a referência `0.000 V` mesmo que a ponta já esteja conectada na bateria/sensor).
+  2. [`hantek_tools/hantek_live_server.py`](hantek_tools/hantek_live_server.py): **Servidor Daemon de Streaming USB Ao Vivo (`http://127.0.0.1:8766/live`)**. Mantém o USB aberto e disponibiliza os pacotes de 600 pontos reais + métricas (`Vmin`, `Vmax`, `Vmean`, `Vpp`, `Vrms`, `Duty %`, `Freq Hz`) a ~12 quadros por segundo.
+  3. [`hantek_tools/hantek_widget_gen.py`](hantek_tools/hantek_widget_gen.py): **Gerador de Mini-Tela Gráfica Guiada Inline (`<agent-embed>`)**.
 
 ---
 
-## 🛡️ 3. Regras de Ouro de Segurança de Barramento (OBRIGATÓRIO)
+## 🔬 3. Fluxo Pericial Completo: Do Scanner Digital (`vLinker`) para a Prova Física Guiada (`Hantek 1008C`)
+
+Sempre que os testes iniciais via **vLinker MC+** (DTCs + Freeze Frame + Live Data OBD/UDS) apontarem para um sensor, atuador, chicote ou sincronismo suspeito (ex: `P0016` sincronismo CKP/CMP, `P0102`/`P0171` MAF, `P0251` válvula dosadora HPFP, `P0045` solenoide N75 turbo, falha de bobina/injetor ou queda de bateria no arranque):
+
+1. **Inicie Automaticamente o Daemon Ao Vivo do Hantek 1008C em Background** (se ainda não estiver rodando na porta `8766`):
+   ```bash
+   python hantek_tools/hantek_live_server.py --port 8766 --ch 1 2
+   ```
+2. **Gere a Mini-Tela Gráfica Guiada com a Instrução de Pinagem (`--probe-guide`) e o Sinal Esperado (`--expected`):**
+   ```bash
+   python hantek_tools/hantek_widget_gen.py \
+     --out-html <artifact_path>/hantek_guided_probe.html \
+     --title "Prova Física Ao Vivo — <Nome do Componente>" \
+     --ch1-label "CH1 (<Sinal Principal>)" \
+     --ch2-label "CH2 (<Referência / Sinc.>)" \
+     --probe-guide "Conecte a agulha do Canal 1 (CH1) no pino/fio <Cor/Pino> do <Componente> e a garra jacaré no negativo da bateria." \
+     --expected "<Tensão / Frequência / Duty Cycle esperados para peça boa vs defeituosa>" \
+     --vdiv 2.0
+   ```
+3. **Exiba a Mini-Tela Diretamente no Chat com `<agent-embed>`:**
+   - Salve o HTML no diretório de artifacts da conversa com `UserFacing: true` e inclua na sua resposta:
+     `<agent-embed src="file:///<artifact_path>/hantek_guided_probe.html"></agent-embed>`
+   - Assim o mecânico vê a tela do osciloscópio mexendo ao vivo dentro do próprio chat enquanto encosta a agulha no pino indicado!
+4. **Leitura Direta pelo Agente para Veredito Cruzado (Digital + Físico):**
+   - Quando o mecânico encostar a ponta de prova, consulte `http://127.0.0.1:8766/live` (via `curl` ou Python) para ler os valores reais de `metrics_ch1` (`vmin`, `vmax`, `vmean`, `vpp`, `duty_pct`, `freq_hz`) e cruze com os PIDs do `vLinker` para emitir o veredito final (se o defeito é o componente morto, falta de alimentação 5V/12V, fio rompido ou falha interna da ECU).
+
+---
+
+## 🛡️ 4. Regras de Ouro de Segurança de Barramento (OBRIGATÓRIO)
 1. **Prevenção de `BUFFER FULL` no vLinker MC+:**
    - **JAMAIS** envie comandos sem aguardar o prompt `>`.
    - **JAMAIS** abra filtro `ATCM 000` em redes CAN ativas.
@@ -81,11 +101,12 @@ Captura física de sinais analógicos e PWM (CKP/CMP, Injetores, Ignição Prim�
 
 ---
 
-## 🚀 4. SUA PRIMEIRA AÇÃO AGORA (Ao Receber o Link Deste Repositório)
+## 🚀 5. SUA PRIMEIRA AÇÃO AGORA (Ao Receber o Link Deste Repositório)
 1. Sincronize o repositório local (`git pull --rebase`) e verifique `http://127.0.0.1:8000/status`.
 2. Execute **apenas o Handshake Cirúrgico Leve de 3 comandos** no veículo conectado (`python vlinker_diag.py --handshake`):
    - `ATRV` (Tensão da bateria OBD-II)
    - `0902` / `22F190` (Leitura do VIN)
    - `03` (Checagem rápida de DTCs do motor)
 3. Apresente ao operador a tensão da bateria e o veículo identificado, e **PERGUNTE IMEDIATAMENTE:**
-   > *"Qual sintoma o veículo apresenta e quais módulos/sistemas (ou sinais no Osciloscópio Hantek 1008C) devemos analisar ou reparar agora?"*
+   > *"Qual sintoma o veículo apresenta e quais módulos/sistemas devemos analisar agora?"*
+   *(E assim que o teste digital via vLinker apontar um componente suspeito, abra proativamente a mini-tela gráfica ao vivo do Hantek 1008C indicando onde espetar a ponta de prova para a confirmação física!)*

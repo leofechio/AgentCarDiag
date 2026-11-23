@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
 hantek_widget_gen.py — Gerador de Mini-Tela Gráfica Dinâmica 100% Real com Streaming Ao Vivo
-para o Chat do Antigravity (Generative UI <agent-embed>).
+e Guia de Prova Pericial (Pinagem + Valores Esperados) para o Chat do Antigravity (<agent-embed>).
 Projeto AgentCarDiag
 
-Conecta automaticamente em http://127.0.0.1:8766/live (hantek_live_server.py)
-para atualizar o gráfico e os medidores continuamente em tempo real (~12 FPS)
-sem precisar enviar novas mensagens no chat!
+Uso automático pelo Agente após diagnóstico inicial com vLinker MC+:
+  1. Inicia o daemon USB (se ainda não estiver rodando):
+     python hantek_tools/hantek_live_server.py --port 8766 --ch 1 2
+  2. Gera o HTML interativo com a instrução de onde espetar a ponta de prova e o valor esperado:
+     python hantek_tools/hantek_widget_gen.py \
+       --out-html <artifact_dir>/hantek_guided_probe.html \
+       --title "Prova Física Guiada — Sensor MAF (Audi A4 P0171)" \
+       --probe-guide "Conecte a agulha do CH1 no Pino 5 (Sinal) do Sensor MAF e a garra jacaré no negativo da bateria." \
+       --expected "Marcha lenta: 1.0V a 1.4V DC | Aceleração WOT (3500 RPM): pico > 3.8V a 4.5V sem quedas."
+  3. O Agente lê http://127.0.0.1:8766/live para cruzar a onda real do Hantek com os PIDs do vLinker!
 """
 
 from __future__ import annotations
@@ -26,7 +33,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body class="bg-transparent text-[var(--foreground)] antialiased p-3">
   <div class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-xl p-4 shadow-sm">
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--border)]">
+    <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[var(--border)]">
       <div class="flex items-center gap-2">
         <span id="live-dot" class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
         <h2 class="font-semibold text-sm tracking-tight" id="widget-title">__TITLE__</h2>
@@ -38,16 +45,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Guided Probe Instructions Banner -->
+    __GUIDE_BANNER__
+
     <!-- Canvas Screen (100% Real Live USB Stream) -->
-    <div class="relative mt-3 rounded-lg overflow-hidden border border-[var(--border)]" style="background: #090d14;">
-      <canvas id="scope-canvas" width="680" height="230" class="w-full block cursor-crosshair" style="height: 230px;"></canvas>
+    <div class="relative mt-2.5 rounded-lg overflow-hidden border border-[var(--border)]" style="background: #090d14;">
+      <canvas id="scope-canvas" width="680" height="210" class="w-full block cursor-crosshair" style="height: 210px;"></canvas>
       <div id="cursor-readout" class="hidden absolute top-2 right-2 px-2 py-1 rounded text-xs font-mono border border-slate-700" style="background: rgba(9,13,20,0.9); color: #e2e8f0;">
         Amostra #0 | CH1: 0.000 V
       </div>
     </div>
 
     <!-- Real Hardware Metrics Bar -->
-    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-3">
+    <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-2.5">
       <div class="p-2 rounded-lg border border-[var(--border)] bg-[var(--background)]">
         <div class="text-xs text-[var(--muted-foreground)]">Vmin (Real)</div>
         <div class="text-xs font-mono font-semibold text-emerald-400" id="m-vmin">__VMIN__ V</div>
@@ -75,7 +85,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
 
     <!-- Controls Footer -->
-    <div class="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2 border-t border-[var(--border)] text-xs text-[var(--muted-foreground)]">
+    <div class="flex flex-wrap items-center justify-between gap-2 mt-2.5 pt-2 border-t border-[var(--border)] text-xs text-[var(--muted-foreground)]">
       <div class="flex items-center gap-3">
         <label class="flex items-center gap-1 cursor-pointer">
           <input type="checkbox" id="chk-ch1" checked class="accent-emerald-500" />
@@ -88,8 +98,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="flex items-center gap-2">
         <span>Escala V/div:</span>
-        <input type="range" id="zoom-v" min="0.1" max="20" step="0.1" value="1.0" class="w-24 accent-cyan-500" />
-        <span class="font-mono" id="zoom-label">1.0 V/div</span>
+        <input type="range" id="zoom-v" min="0.1" max="20" step="0.1" value="__VDIV__" class="w-24 accent-cyan-500" />
+        <span class="font-mono" id="zoom-label">__VDIV__ V/div</span>
       </div>
     </div>
   </div>
@@ -101,7 +111,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     const canvas = document.getElementById('scope-canvas');
     const ctx = canvas.getContext('2d');
     let running = true;
-    let vDiv = 1.0;
+    let vDiv = parseFloat("__VDIV__") || 1.0;
     let cursorX = null;
 
     const btnRun = document.getElementById('btn-run');
@@ -136,7 +146,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       readout.classList.add('hidden');
     });
 
-    // Polling contínuo de alta velocidade ao daemon USB local (porta 8766)
     async function pollLiveHardware() {
       if (running) {
         try {
@@ -251,6 +260,9 @@ def generate_widget_html(
     title: str = "Hantek 1008C (USB 0783:5725) — Monitor Ao Vivo USB",
     ch1_label: str = "CH1 (Ao Vivo)",
     ch2_label: str = "CH2 (Ao Vivo)",
+    probe_guide: str = "",
+    expected: str = "",
+    vdiv: float = 1.0,
 ) -> Path:
     ch1_samples: List[float] = [0.0] * 600
     ch2_samples: List[float] = [0.0] * 600
@@ -268,10 +280,21 @@ def generate_widget_html(
         if len(c_keys) >= 2:
             ch2_samples = chs[c_keys[1]].get("samples", ch2_samples)[:600]
 
+    guide_html = ""
+    if probe_guide or expected:
+        guide_html = '<div class="mt-2.5 p-2.5 rounded-lg border border-cyan-500/30 bg-[var(--background)] text-xs space-y-1">'
+        if probe_guide:
+            guide_html += f'<div><span class="font-semibold text-cyan-400">📍 Onde conectar a ponta:</span> <span class="text-[var(--foreground)]">{probe_guide}</span></div>'
+        if expected:
+            guide_html += f'<div><span class="font-semibold text-emerald-400">🎯 Sinal esperado:</span> <span class="text-[var(--muted-foreground)] font-mono">{expected}</span></div>'
+        guide_html += "</div>"
+
     html = (
         HTML_TEMPLATE.replace("__TITLE__", title)
+        .replace("__GUIDE_BANNER__", guide_html)
         .replace("__CH1_LABEL__", ch1_label)
         .replace("__CH2_LABEL__", ch2_label)
+        .replace("__VDIV__", f"{vdiv:.1f}")
         .replace("__VMIN__", f"{metrics.get('vmin', 0.0):+.3f}")
         .replace("__VMAX__", f"{metrics.get('vmax', 0.0):+.3f}")
         .replace("__VMEAN__", f"{metrics.get('vmean', 0.0):+.3f}")
@@ -289,15 +312,27 @@ def generate_widget_html(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Gerador de Widget Ao Vivo para Hantek 1008C")
+    parser = argparse.ArgumentParser(description="Gerador de Widget Ao Vivo Guiado para Hantek 1008C")
     parser.add_argument("--in-json", type=str, default="", help="Arquivo JSON opcional de snapshot inicial")
     parser.add_argument("--out-html", type=str, required=True, help="Caminho de saída do HTML")
     parser.add_argument("--title", type=str, default="Hantek 1008C (USB 0783:5725) — Monitor Ao Vivo USB")
     parser.add_argument("--ch1-label", type=str, default="CH1 (Ao Vivo)")
     parser.add_argument("--ch2-label", type=str, default="CH2 (Ao Vivo)")
+    parser.add_argument("--probe-guide", type=str, default="", help="Instrução de onde espetar a agulha do canal")
+    parser.add_argument("--expected", type=str, default="", help="Valores elétricos esperados para aprovação")
+    parser.add_argument("--vdiv", type=float, default=1.0, help="Escala vertical inicial em V/div")
     args = parser.parse_args()
-    out = generate_widget_html(args.in_json, args.out_html, args.title, args.ch1_label, args.ch2_label)
-    print(f"✅ Widget ao vivo gerado em: {out}")
+    out = generate_widget_html(
+        args.in_json,
+        args.out_html,
+        args.title,
+        args.ch1_label,
+        args.ch2_label,
+        args.probe_guide,
+        args.expected,
+        args.vdiv,
+    )
+    print(f"✅ Widget ao vivo guiado gerado em: {out}")
 
 
 if __name__ == "__main__":
