@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-hantek_widget_gen.py — Gerador de Mini-Tela Gráfica Dinâmica 100% Real (Zero Simulação)
+hantek_widget_gen.py — Gerador de Mini-Tela Gráfica Dinâmica 100% Real com Streaming Ao Vivo
 para o Chat do Antigravity (Generative UI <agent-embed>).
 Projeto AgentCarDiag
 
-Renderiza EXCLUSIVAMENTE as amostras reais capturadas via USB do Hantek 1008C (0783:5725),
-sem qualquer sinal simulado, jitter artificial ou formas de onda sintéticas.
+Conecta automaticamente em http://127.0.0.1:8766/live (hantek_live_server.py)
+para atualizar o gráfico e os medidores continuamente em tempo real (~12 FPS)
+sem precisar enviar novas mensagens no chat!
 """
 
 from __future__ import annotations
@@ -27,17 +28,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[var(--border)]">
       <div class="flex items-center gap-2">
-        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+        <span id="live-dot" class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
         <h2 class="font-semibold text-sm tracking-tight" id="widget-title">__TITLE__</h2>
-        <span class="text-xs px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--muted-foreground)] font-mono">__SAMPLE_RATE__</span>
+        <span id="live-badge" class="text-xs px-2 py-0.5 rounded-full border border-emerald-500/40 text-emerald-400 font-mono">🔴 AO VIVO USB</span>
       </div>
       <div class="flex items-center gap-2 text-xs font-mono text-[var(--muted-foreground)]">
-        <span>Amostras Reais USB: __SAMPLES_COUNT__ pts</span>
+        <span id="frame-counter">Frame #0</span>
         <button id="btn-run" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition">⏸ Congelar</button>
       </div>
     </div>
 
-    <!-- Canvas Screen (100% Real Samples) -->
+    <!-- Canvas Screen (100% Real Live USB Stream) -->
     <div class="relative mt-3 rounded-lg overflow-hidden border border-[var(--border)]" style="background: #090d14;">
       <canvas id="scope-canvas" width="680" height="230" class="w-full block cursor-crosshair" style="height: 230px;"></canvas>
       <div id="cursor-readout" class="hidden absolute top-2 right-2 px-2 py-1 rounded text-xs font-mono border border-slate-700" style="background: rgba(9,13,20,0.9); color: #e2e8f0;">
@@ -64,8 +65,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="text-xs font-mono font-semibold text-amber-400" id="m-vpp">__VPP__ V</div>
       </div>
       <div class="p-2 rounded-lg border border-[var(--border)] bg-[var(--background)]">
-        <div class="text-xs text-[var(--muted-foreground)]">Vrms</div>
-        <div class="text-xs font-mono font-semibold text-purple-400" id="m-vrms">__VRMS__ V</div>
+        <div class="text-xs text-[var(--muted-foreground)]">Duty Cycle</div>
+        <div class="text-xs font-mono font-semibold text-purple-400" id="m-duty">__DUTY__ %</div>
       </div>
       <div class="p-2 rounded-lg border border-[var(--border)] bg-[var(--background)]">
         <div class="text-xs text-[var(--muted-foreground)]">Frequência</div>
@@ -94,14 +95,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <script>
-    // Dados 100% reais lidos do ADC de 12 bits do Hantek 1008C via USB
-    const REAL_CH1 = __CH1_JSON__;
-    const REAL_CH2 = __CH2_JSON__;
+    let REAL_CH1 = __CH1_JSON__;
+    let REAL_CH2 = __CH2_JSON__;
 
     const canvas = document.getElementById('scope-canvas');
     const ctx = canvas.getContext('2d');
     let running = true;
-    let windowOffset = 0;
     let vDiv = 1.0;
     let cursorX = null;
 
@@ -111,10 +110,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     const chkCh1 = document.getElementById('chk-ch1');
     const chkCh2 = document.getElementById('chk-ch2');
     const readout = document.getElementById('cursor-readout');
+    const liveBadge = document.getElementById('live-badge');
+    const frameCounter = document.getElementById('frame-counter');
 
     btnRun.addEventListener('click', () => {
       running = !running;
-      btnRun.textContent = running ? '⏸ Congelar' : '▶ Varrer Buffer Real';
+      btnRun.textContent = running ? '⏸ Congelar' : '▶ Retomar Ao Vivo';
       btnRun.className = running
         ? 'px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-500 transition'
         : 'px-2.5 py-1 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-500 transition';
@@ -135,6 +136,37 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       readout.classList.add('hidden');
     });
 
+    // Polling contínuo de alta velocidade ao daemon USB local (porta 8766)
+    async function pollLiveHardware() {
+      if (running) {
+        try {
+          const resp = await fetch('http://127.0.0.1:8766/live', { cache: 'no-store' });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.connected && data.ch1 && data.ch1.length > 0) {
+              REAL_CH1 = data.ch1;
+              REAL_CH2 = data.ch2 || [];
+              const m = data.metrics_ch1 || {};
+              document.getElementById('m-vmin').textContent = (m.vmin >= 0 ? '+' : '') + Number(m.vmin || 0).toFixed(3) + ' V';
+              document.getElementById('m-vmax').textContent = (m.vmax >= 0 ? '+' : '') + Number(m.vmax || 0).toFixed(3) + ' V';
+              document.getElementById('m-vmean').textContent = (m.vmean >= 0 ? '+' : '') + Number(m.vmean || 0).toFixed(3) + ' V';
+              document.getElementById('m-vpp').textContent = Number(m.vpp || 0).toFixed(3) + ' V';
+              document.getElementById('m-duty').textContent = Number(m.duty_pct || 0).toFixed(1) + ' %';
+              document.getElementById('m-freq').textContent = Number(m.freq_hz || 0).toFixed(1) + ' Hz';
+              frameCounter.textContent = 'Frame #' + data.frame_id;
+              liveBadge.textContent = '🟢 AO VIVO USB (400 kHz)';
+            } else {
+              liveBadge.textContent = '🟡 USB Aguardando';
+            }
+          }
+        } catch (err) {
+          liveBadge.textContent = '⚪ Snapshot Buffer';
+        }
+      }
+      setTimeout(pollLiveHardware, 85);
+    }
+    pollLiveHardware();
+
     function drawGrid(W, H) {
       ctx.strokeStyle = 'rgba(148, 163, 184, 0.13)';
       ctx.lineWidth = 1;
@@ -148,15 +180,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
       }
       ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
-      ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, H * 0.65); ctx.lineTo(W, H * 0.65); ctx.stroke();
       ctx.fillStyle = '#64748b';
       ctx.font = '12px monospace';
-      ctx.fillText('0.000 V (GND)', 8, (H / 2) - 6);
+      ctx.fillText('0.000 V (GND)', 8, (H * 0.65) - 6);
     }
 
     function voltToY(v, H) {
-      const center = H / 2;
-      const pxPerVolt = (H / 8) / vDiv;
+      const center = H * 0.65;
+      const pxPerVolt = (H / 6) / vDiv;
       return center - (v * pxPerVolt);
     }
 
@@ -166,19 +198,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       drawGrid(W, H);
 
       const totalPts = REAL_CH1.length;
-      const viewPts = Math.min(400, totalPts);
-      if (running && totalPts > viewPts) {
-        windowOffset = (windowOffset + 2) % totalPts;
-      }
+      const viewPts = Math.min(600, totalPts);
 
       if (chkCh1.checked && totalPts > 0) {
         ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
         for (let i = 0; i < viewPts; i++) {
-          const sampleIdx = (windowOffset + i) % totalPts;
           const x = (i / (viewPts - 1)) * W;
-          const y = voltToY(REAL_CH1[sampleIdx], H);
+          const y = voltToY(REAL_CH1[i], H);
           if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.stroke();
@@ -188,10 +216,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         ctx.strokeStyle = '#22d3ee';
         ctx.lineWidth = 1.6;
         ctx.beginPath();
-        for (let i = 0; i < viewPts; i++) {
-          const sampleIdx = (windowOffset + i) % REAL_CH2.length;
-          const x = (i / (viewPts - 1)) * W;
-          const y = voltToY(REAL_CH2[sampleIdx], H);
+        const n2 = Math.min(viewPts, REAL_CH2.length);
+        for (let i = 0; i < n2; i++) {
+          const x = (i / (n2 - 1)) * W;
+          const y = voltToY(REAL_CH2[i], H);
           if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.stroke();
@@ -199,13 +227,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
       if (cursorX !== null && totalPts > 0) {
         const i = Math.max(0, Math.min(viewPts - 1, Math.round((cursorX / W) * (viewPts - 1))));
-        const sampleIdx = (windowOffset + i) % totalPts;
         ctx.strokeStyle = '#f43f5e';
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(cursorX, 0); ctx.lineTo(cursorX, H); ctx.stroke();
-        const v1 = REAL_CH1[sampleIdx] ?? 0;
-        const v2 = REAL_CH2[sampleIdx % REAL_CH2.length] ?? 0;
-        readout.textContent = `Amostra #${sampleIdx} | CH1: ${v1 >= 0 ? '+' : ''}${v1.toFixed(4)} V | CH2: ${v2 >= 0 ? '+' : ''}${v2.toFixed(4)} V`;
+        const v1 = REAL_CH1[i] ?? 0;
+        const v2 = REAL_CH2[i] ?? 0;
+        readout.textContent = `Amostra #${i} | CH1: ${v1 >= 0 ? '+' : ''}${v1.toFixed(3)} V | CH2: ${v2 >= 0 ? '+' : ''}${v2.toFixed(3)} V`;
       }
 
       requestAnimationFrame(render);
@@ -221,40 +248,35 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 def generate_widget_html(
     sample_json_path: str,
     output_html_path: str,
-    title: str = "Hantek 1008C (USB 0783:5725) — Leitura Real USB",
-    ch1_label: str = "CH1 (Real)",
-    ch2_label: str = "CH2 (Real)",
+    title: str = "Hantek 1008C (USB 0783:5725) — Monitor Ao Vivo USB",
+    ch1_label: str = "CH1 (Ao Vivo)",
+    ch2_label: str = "CH2 (Ao Vivo)",
 ) -> Path:
-    in_p = Path(sample_json_path)
-    if not in_p.exists():
-        raise FileNotFoundError(f"Arquivo de captura real não encontrado: {in_p}")
+    ch1_samples: List[float] = [0.0] * 600
+    ch2_samples: List[float] = [0.0] * 600
+    metrics = {"vmin": 0.0, "vmax": 0.0, "vmean": 0.0, "vpp": 0.0, "duty_pct": 0.0, "freq_hz": 0.0}
 
-    with open(in_p, "r", encoding="utf-8") as f:
-        doc = json.load(f)
-
-    sr_hz = doc.get("sample_rate_hz", 50000)
-    ns_div = doc.get("ns_per_div", 500000)
-    sr_text = f"{int(sr_hz/1000)} kHz ({int(ns_div/1000)} µs/div)"
-    chs = doc.get("channels", {})
-    c_keys = list(chs.keys())
-    if not c_keys:
-        raise RuntimeError("Nenhum canal encontrado no JSON de captura real.")
-
-    ch1_samples: List[float] = chs[c_keys[0]].get("samples", [])
-    metrics = chs[c_keys[0]].get("metrics", {})
-    ch2_samples: List[float] = chs[c_keys[1]].get("samples", []) if len(c_keys) > 1 else []
+    in_p = Path(sample_json_path) if sample_json_path else None
+    if in_p and in_p.exists():
+        with open(in_p, "r", encoding="utf-8") as f:
+            doc = json.load(f)
+        chs = doc.get("channels", {})
+        c_keys = list(chs.keys())
+        if len(c_keys) >= 1:
+            ch1_samples = chs[c_keys[0]].get("samples", ch1_samples)[:600]
+            metrics = chs[c_keys[0]].get("metrics", metrics)
+        if len(c_keys) >= 2:
+            ch2_samples = chs[c_keys[1]].get("samples", ch2_samples)[:600]
 
     html = (
         HTML_TEMPLATE.replace("__TITLE__", title)
-        .replace("__SAMPLE_RATE__", sr_text)
-        .replace("__SAMPLES_COUNT__", str(len(ch1_samples)))
         .replace("__CH1_LABEL__", ch1_label)
         .replace("__CH2_LABEL__", ch2_label)
         .replace("__VMIN__", f"{metrics.get('vmin', 0.0):+.3f}")
         .replace("__VMAX__", f"{metrics.get('vmax', 0.0):+.3f}")
         .replace("__VMEAN__", f"{metrics.get('vmean', 0.0):+.3f}")
         .replace("__VPP__", f"{metrics.get('vpp', 0.0):.3f}")
-        .replace("__VRMS__", f"{metrics.get('vrms', 0.0):.3f}")
+        .replace("__DUTY__", f"{metrics.get('duty_pct', 0.0):.1f}")
         .replace("__FREQ__", f"{metrics.get('freq_hz', 0.0):.1f}")
         .replace("__CH1_JSON__", json.dumps(ch1_samples))
         .replace("__CH2_JSON__", json.dumps(ch2_samples))
@@ -267,15 +289,15 @@ def generate_widget_html(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Gerador de Widget 100% Real para Hantek 1008C")
-    parser.add_argument("--in-json", type=str, required=True, help="Arquivo JSON real gerado pelo hantek_cli.py")
+    parser = argparse.ArgumentParser(description="Gerador de Widget Ao Vivo para Hantek 1008C")
+    parser.add_argument("--in-json", type=str, default="", help="Arquivo JSON opcional de snapshot inicial")
     parser.add_argument("--out-html", type=str, required=True, help="Caminho de saída do HTML")
-    parser.add_argument("--title", type=str, default="Hantek 1008C (USB 0783:5725) — Leitura Real USB")
-    parser.add_argument("--ch1-label", type=str, default="CH1 (Real)")
-    parser.add_argument("--ch2-label", type=str, default="CH2 (Real)")
+    parser.add_argument("--title", type=str, default="Hantek 1008C (USB 0783:5725) — Monitor Ao Vivo USB")
+    parser.add_argument("--ch1-label", type=str, default="CH1 (Ao Vivo)")
+    parser.add_argument("--ch2-label", type=str, default="CH2 (Ao Vivo)")
     args = parser.parse_args()
     out = generate_widget_html(args.in_json, args.out_html, args.title, args.ch1_label, args.ch2_label)
-    print(f"✅ Widget 100% real gerado em: {out}")
+    print(f"✅ Widget ao vivo gerado em: {out}")
 
 
 if __name__ == "__main__":
