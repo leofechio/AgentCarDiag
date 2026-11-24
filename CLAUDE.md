@@ -48,8 +48,8 @@
 - **Protocolo:** `55 AA F0 F8` com checksum XOR seed `0x08` (`dbscar7/dbscar7.py`, `dbscar7/OPCODES.md`).
 
 ### 4.3 Osciloscópio Automotivo 8 Canais Hantek 1008C (`USB 0783:5725` / `YDJ-2088`)
-- **PROIBIÇÃO NO WINDOWS:** **JAMAIS abra o programa `Scope.exe` (`C:\Program Files (x86)\Hantek\Scope1008\Scope.exe`) e JAMAIS peça print da tela do Hantek ao usuário!** Se `Scope.exe` estiver rodando, feche-o (`taskkill /F /IM Scope.exe`) e use `hantek_live_server.py` + `hantek_widget_gen.py` com `<agent-embed>`.
-- **Driver, Live Server & Widget:** `hantek_tools/hantek1008_driver.py`, `hantek_tools/hantek_live_server.py` (`http://127.0.0.1:8766/live`) e `hantek_tools/hantek_widget_gen.py`.
+- **Modo Padrão (Mini-Tela Ao Vivo no Chat):** Use `hantek_tools/hantek_live_server.py` (`http://127.0.0.1:8766/live`) e `hantek_tools/hantek_widget_gen.py` com `<agent-embed>`.
+- **Modo Programa Hantek Padrão (`Scope.exe` + Print quando o usuário pedir):** Se o usuário disser que vai usar o programa padrão da Hantek (`Scope.exe`) e mandar print, **NUNCA o impeça**! Pare o `hantek_live_server.py` para liberar a porta USB ao `Scope.exe` e analise normalmente os prints que ele enviar.
 - **Linux:** Regra udev `/etc/udev/rules.d/99-hantek1008.rules` (`ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0783", ATTR{idProduct}=="5725", MODE="0666"`).
 - **Windows:** Instalar `pip install pyusb libusb-package` no `.venv` e instalar driver `WinUSB` via **Zadig** para o dispositivo `HANTEK1008 / YDJ-2088 (0783:5725)`.
 - **Comandos Rápidos:**

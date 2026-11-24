@@ -58,9 +58,11 @@ Usada quando é necessário multiplexar pinos OBD-II (K-Line fora do pino 7), KW
   - [`dbscar7/cli.py`](dbscar7/cli.py): CLI rápido (`--ble`, `--port`, `--baud`, `--kline`, `--raw`).
   - [`dbscar7/OPCODES.md`](dbscar7/OPCODES.md): Tabela completa dos 185 opcodes extraídos da `libCOMM_ABSTRACT_LAYER.so`.
 
-### C. Osciloscópio Automotivo de 8 Canais — Hantek 1008C (`USB 0783:5725` / `YDJ-2088`) & Mini-Tela Gráfica Ao Vivo no Chat
+### C. Osciloscópio Automotivo de 8 Canais — Hantek 1008C (`USB 0783:5725` / `YDJ-2088`) & Mini-Tela Gráfica Ao Vivo no Chat (Com Suporte Opcional ao Programa Hantek Padrão `Scope.exe`)
 Captura física 100% real (zero simulação) de sinais analógicos e PWM (CKP/CMP, Injetores, Ignição, Bomba de Alta HPFP, MAF/MAP, Sonda Lambda, Compressão Relativa, Ripple do Alternador, Rede CAN física):
-- **🚫 PROIBIÇÃO ABSOLUTA NO WINDOWS:** **JAMAIS abra o programa `C:\Program Files (x86)\Hantek\Scope1008\Scope.exe` e JAMAIS peça para o usuário tirar print da tela do Hantek!** O `Scope.exe` trava a porta USB e impede o agente de ler os sinais ao vivo. Se o `Scope.exe` estiver aberto no Windows, feche-o (`taskkill /F /IM Scope.exe`) e use **exclusivamente** os scripts abaixo para mostrar a mini-tela gráfica ao vivo dentro do próprio chat!
+- **Regra de Operação Dual (Mini-Tela Ao Vivo no Chat vs. Programa Padrão `Scope.exe`):**
+  1. **Modo Padrão (Mini-Tela Ao Vivo no Chat via USB Direto):** Por padrão, use os scripts abaixo (`hantek_live_server.py` + `hantek_widget_gen.py`) para mostrar a mini-tela gráfica ao vivo diretamente dentro do chat (`<agent-embed>`) e ler os valores reais em `http://127.0.0.1:8766/live`.
+  2. **Modo Programa Hantek Padrão (`Scope.exe` + Print) quando o Usuário Pedir:** Se o usuário disser que prefere usar o programa padrão da Hantek (`C:\Program Files (x86)\Hantek\Scope1008\Scope.exe`) e enviar prints da tela, **NUNCA o impeça!** Nesse caso, **pare o `hantek_live_server.py`** (para liberar a porta USB para o `Scope.exe`), abra ou deixe o usuário usar o `Scope.exe` livremente e analise normalmente os prints/imagens que ele enviar!
 - **Scripts Prontos em [`hantek_tools/`](hantek_tools/):**
   1. [`hantek_tools/hantek1008_driver.py`](hantek_tools/hantek1008_driver.py): Driver PyUSB/libusb multi-plataforma (Linux e Windows via `libusb_package`) calibrado em **400 kHz** (`200 amostras/div`), ganho calibrado (`0.010179 V/count`), autocalibração obrigatória das 3 escalas do STM32 (`0.02`, `0.125`, `1.0`) e proteção de `FACTORY_OPEN_ZERO`.
   2. [`hantek_tools/hantek_live_server.py`](hantek_tools/hantek_live_server.py): **Servidor Daemon de Streaming USB Ao Vivo (`http://127.0.0.1:8766/live`)**. Mantém o USB aberto e disponibiliza os pacotes de 600 pontos reais + métricas (`Vmin`, `Vmax`, `Vmean`, `Vpp`, `Vrms`, `Duty %`, `Freq Hz`) a ~12 quadros por segundo.
@@ -72,7 +74,7 @@ Captura física 100% real (zero simulação) de sinais analógicos e PWM (CKP/CM
 
 Sempre que os testes iniciais via **vLinker MC+** (DTCs + Freeze Frame + Live Data OBD/UDS) apontarem para um sensor, atuador, chicote ou sincronismo suspeito (ou quando o usuário pedir para mostrar a tela do osciloscópio):
 
-1. **Inicie Automaticamente o Daemon Ao Vivo do Hantek 1008C em Background** (na porta `8766`; no Windows ele fecha o `Scope.exe` automaticamente):
+1. **Inicie Automaticamente o Daemon Ao Vivo do Hantek 1008C em Background** (na porta `8766`, a menos que o usuário peça para usar o programa `Scope.exe` padrão):
    ```bash
    python hantek_tools/hantek_live_server.py --port 8766 --ch 1 2
    ```
@@ -91,8 +93,9 @@ Sempre que os testes iniciais via **vLinker MC+** (DTCs + Freeze Frame + Live Da
    - Salve o HTML no diretório de artifacts da conversa com `UserFacing: true` e inclua na sua resposta:
      `<agent-embed src="file:///<artifact_path>/hantek_guided_probe.html"></agent-embed>`
    - Assim o mecânico vê a tela do osciloscópio mexendo ao vivo dentro do próprio chat enquanto encosta a agulha no pino indicado!
-4. **Leitura Direta pelo Agente para Veredito Cruzado (Digital + Físico):**
-   - Quando o mecânico encostar a ponta de prova, consulte `http://127.0.0.1:8766/live` (via `curl` ou Python) para ler os valores reais de `metrics_ch1` (`vmin`, `vmax`, `vmean`, `vpp`, `duty_pct`, `freq_hz`) e cruze com os PIDs do `vLinker` para emitir o veredito final (se o defeito é o componente morto, falta de alimentação 5V/12V, fio rompido ou falha interna da ECU).
+4. **Leitura Direta pelo Agente (ou Análise de Print se o Usuário Preferir o `Scope.exe`):**
+   - No modo ao vivo no chat, consulte `http://127.0.0.1:8766/live` para ler os valores reais de `metrics_ch1` (`vmin`, `vmax`, `vmean`, `vpp`, `duty_pct`, `freq_hz`).
+   - Se o usuário avisar que vai usar o programa padrão da Hantek (`Scope.exe`) e mandar print, libere a porta USB (encerrando o `hantek_live_server.py`), deixe o `Scope.exe` aberto e faça a análise técnica completa a partir dos prints enviados por ele!
 
 ---
 
