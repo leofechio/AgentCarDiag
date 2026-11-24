@@ -109,9 +109,10 @@ Sempre que os testes iniciais via **vLinker MC+** (DTCs + Freeze Frame + Live Da
      Ao concluir, limpe com `restore_default_state()`.
 2. **Sessão Estendida UDS (`10 03`) vs. Modo `01` OBD-II:**
    - Em ECUs como a Delphi DCM6.2V (VW BiTDI), estar em sessão `10 03` bloqueia respostas aos PIDs do Modo `01`. Para gravar Live Data / Flight Recorder do Modo `01`, volte sempre à sessão padrão `10 01`.
-3. **Laudo Pericial Único — Somente PDF na Pasta `informa` da Área de Trabalho:**
-   - Ao finalizar o diagnóstico, gere **EXCLUSIVAMENTE um único arquivo `.pdf` A4** dentro da pasta **`informa` na Área de Trabalho** (criando a pasta automaticamente caso ainda não exista: `C:\Users\Usuario\Desktop\informa\` no Windows ou `~/Desktop/informa/` / `~/Escritorio/informa/` no Linux).
-   - **PROIBIDO** gerar arquivos `.txt`, cópias duplicadas do `.pdf` na pasta do projeto ou links extras. Gere **somente o PDF final** dentro da pasta `informa` da Área de Trabalho!
+3. **Laudo Pericial Único e Ultra-Rápido (~1,5s) — Somente PDF na Pasta `informa` da Área de Trabalho (`report_pdf_generator.py`):**
+   - Ao finalizar o diagnóstico, **NÃO perca tempo escrevendo HTML/CSS do zero**! Use diretamente o gerador pronto [`report_pdf_generator.py`](report_pdf_generator.py) (`from report_pdf_generator import generate_pdf_from_spec` ou `python report_pdf_generator.py --json spec.json --out-name Informe_..._ES.pdf`).
+   - Ele gera **EXCLUSIVAMENTE um único arquivo `.pdf` A4 em ~1,5 segundo** dentro da pasta **`informa` na Área de Trabalho** (criando a pasta automaticamente se não existir), em **Espanhol (`ES`)** por padrão, com **gráficos SVG automáticos**, **recorte automático da barra de tarefas do Windows** nos prints do `Scope.exe`, **sem QR Code `127.0.0.1`** e **sem Página 2 órfã** (1 página A4 exata sem osciloscópio ou 2 páginas A4 completas com osciloscópio).
+   - **PROIBIDO** gerar arquivos `.txt`, cópias duplicadas do `.pdf` na pasta do projeto ou links extras.
 4. **Retroalimentação Obrigatória no GitHub:**
    - Tudo o que você descobrir ou criar neste atendimento (novos DIDs/PIDs, diagnóstico do veículo, melhorias em scripts) **DEVE** ser documentado em [`memory.md`](memory.md) e enviado ao GitHub (`git add -A && git commit -m "feat(diag): ..." && git push origin main`) para atualizar o outro notebook!
 

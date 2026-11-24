@@ -1305,9 +1305,12 @@ Validado em campo no notebook Windows via Python `bleak` sem necessidade de pare
   - Se o `STFT` **cair para zero/negativo** a `3.000–3.500 RPM`, a causa é um **pequeno vazamento de vácuo no coletor** (diluído pelo alto fluxo de ar em rotação elevada).
   - Se o `STFT` **subir ainda mais** sob alta rotação (no A4 subiu de `+0.8%` em lenta para **`+8.59%` a `3.498 RPM`**, totalizando **`+33.6%` de correção positiva** com `MAF = 10.25 g/s`), descarta-se micro-vazamento de vácuo e comprova-se **déficit proporcional à vazão** (MAF subestimando massa de ar, baixa pressão/vazão da bomba de combustível ou entrada falsa grande pós-MAF / válvula PCV rompida).
 
-### 47.6 Ford Transit Courier 1.0 EcoBoost GDI (`WF0NXXTACNFE59728` — Falha de Cilindro por Queda da Bomba de Alta HPFP)
-- **Topologia CAN Ford:** `7E0->7E8` (ECM `ET71-14C204-NA`), `720->728` (IPC), `730->738` (PSCM), `737->73F` (RCM Airbag), `760->768` (ABS).
-- **Lição Pericial GDI:** O código ativo **`P0251-13`** (*Circuito Aberto na Válvula Dosadora da Bomba de Alta Pressão HPFP*) acompanhado de `P0087-62` e `P053F-21` deixava a pressão do Rail (`0123`) estagnada em **`6.90 a 8.40 bar`** (apenas a pressão da bomba elétrica de baixa do tanque, contra `30–50+ bar` exigidos em marcha lenta GDI) e `STFT = +25.0%`. Sem alta pressão para nebulizar a gasolina na injeção direta, o cilindro falha por falta de atomização — razão pela qual desplugar a bobina do cilindro 3 não alterava o funcionamento do motor.
+### 47.6 Ford Transit Courier 1.0 EcoBoost GDI (`WF0NXXTACNFE59728` — Falha do Driver Negativo Low-Side PWM da ECM Bosch MED17 Confirmada no Hantek 1008C)
+- **Topologia CAN Ford:** `7E0->7E8` (ECM `ET71-14C204-NA` Bosch MED17), `720->728` (IPC), `730->738` (PSCM), `737->73F` (RCM Airbag), `760->768` (ABS).
+- **Lição Pericial GDI & Prova Definitiva no Osciloscópio Hantek 1008C:**
+  - O código ativo **`P0251-13`** (*Circuito Aberto na Válvula Dosadora da Bomba de Alta Pressão HPFP*), acompanhado de `P0087-62` e `P053F-21`, mantinha a pressão do Rail (`0123`) cravada em **`6.90 a 8.40 bar`** (média `7.25 bar` = apenas bomba elétrica de baixa) e `STFT = +25.0%`, mesmo após a substituição mecânica da bomba de alta (HPFP) e confirmação de continuidade perfeita (`< 0.5 Ω`) nos 2 fios até a ECM.
+  - **Prova com Lâmpada de Carga e Hantek 1008C (`5.00 V/div | 10.00 ms/div`):** Conectando uma lâmpada de carga no conector de 2 pinos da válvula dosadora da HPFP, o **`CH1` (Amarelo - Positivo)** recebe um pulso de `+11.5 V` por `~2.5 ms`, porém o **`CH2` (Azul - Retorno/Comando Negativo da ECM)** sobe exatamente junto para **`+11.5 V`** por ausência total de chaveamento à massa ($\Delta V = 0\text{ V}$ sobre a bobina), fazendo a ECM cortar os pulsos logo após a primeira tentativa.
+  - **Veredito Definitivo:** Queima interna do **driver negativo (MOSFET *low-side* PWM)** dentro da ECM Bosch MED17 (`ET71-14C204-NA`).
 
 ### 47.7 Renault Mégane II 1.5 dCi K9K (`VF1BMRF0533536460` — Arquitetura Híbrida K-Line + KWP2000-on-CAN)
 - **Descoberta de Arquitetura Dual:** O OBD-II padrão responde via K-Line (`ATSP5` KWP Fast Init), mas todos os módulos originais Renault respondem em **CAN 500 kbps (`ATSP6`) via KWP2000-on-CAN** (`10 C0` + identificação `21 80` + leitura de falhas `17 FF 00`), exceto o módulo de **Airbag (`752->772`)** que já opera em **UDS (`19 02 FF`)**.
@@ -1320,6 +1323,13 @@ Validado em campo no notebook Windows via Python `bleak` sem necessidade de pare
 ### 47.8 BMW E46 Cabrio M54 (`Siemens MS43` — Estratégia de Emergência *Alpha-N* & GM5 *Short-Drop*)
 - **Protocolo:** `ISO 9141-2` (K-Line Pino 7). Calibrações `0904`: `7530854` / `7531979`.
 - **Física do Modo de Emergência *Alpha-N*:** Com os DTCs ativos **`P0102`** (Circuito MAF baixo, lendo `0.00 g/s` no PID `0110`) e **`P1620`** (Termostato Mapeado), a DME Siemens MS43 trava a Carga Calculada (`0104`) em `0.0%`, congela o `LTFT` dos Bancos 1 e 2 (`0107`/`0109`) em `0.0%` e opera por mapa de emergência rico (*Alpha-N*: RPM × TPS), forçando os `STFT` (`0106`/`0108`) a `-3.91% a -6.25%`.
+
+### 47.9 Volkswagen Crafter 2.0 TDI 2020 (`7949 LJP` — `P00AF` / UDS `004018` Geometria VNT & Limite de 1 Byte `255 kPa` no PID `010B`)
+- **VIN:** `WV3ZZZSZZL9047288` | **Odômetro (`17-IPC`):** `345.009 km` | **ECU Motor (`7E0->7E8`):** `04L906056AS` SW `6411` HW `H01` (`EV_ECM20TDI03004L906056AS`).
+- **DTC Confirmado:** `P00AF` / UDS `004018` (*Desempenho do Módulo "A" de Controle de Pressão do Turbo — VNT / Atuador*, Status `0xA8` MIL ON, Prioridade 2). Freeze Frame registrado sob alta carga (`98.4%` a `73 km/h`, `2.187 RPM`, `MAP = 255 kPa`, `MAF = 129.93 g/s`, `Rail = 1.676 bar`).
+- **Armadilha Pericial do Teto de `255 kPa` no PID `01 0B`:**
+  - O PID padrão OBD-II `01 0B` (*Intake Manifold Absolute Pressure*) possui apenas **1 byte (`0..255 kPa`)**. Em motores 2.0 TDI (`04L906056xx`), qualquer pressão absoluta acima de `255 kPa` (`>1.64 bar` de boost relativo com `Baro = 91 kPa`) fica **saturada visualmente em `255 kPa`** no `01 0B`.
+  - Sempre que diagnosticar `P00AF` / `P0234` / `P0299` em motores TDI onde `01 0B` encosta em `255 kPa`, incluir rapidamente na leitura o **PID `01 70` (Boost Pressure Control 16-bit)** ou o **DID UDS `22 20 BD` (Posição em mV do sensor `G581` da cápsula VNT)** para enxergar desvios de *overboost* acima de `255 kPa` sem adicionar lentidão à captura.
 
 ---
 
@@ -1350,9 +1360,9 @@ Validado em campo no notebook Windows via Python `bleak` sem necessidade de pare
 
 ---
 
-## 49. Revisão Pericial do Módulo Vgate (`vlinker_diag.py`, `full_vehicle_scan.py`, `elm327_core.py`)
+## 49. Revisão Pericial do Módulo Vgate (`vlinker_diag.py`, `full_vehicle_scan.py`, `elm327_core.py`) & Gerador Ultra-Rápido de PDF (`report_pdf_generator.py`)
 
-Implementadas as 6 correções arquiteturais fundamentais para separação determinística entre redes **CAN** e **K-Line** no Vgate vLinker MC+ (e adaptadores ELM327 `PIC18F25K80`):
+Implementadas as correções arquiteturais fundamentais para separação determinística entre redes **CAN** e **K-Line** no Vgate vLinker MC+ e emissão instantânea de laudos:
 
 1. **Inicialização Independente para ISO 9141-2, KWP 5-Baud e KWP Fast Init (`VLinkerBLE` & `ELM327Connection`):**
    - `init_iso9141_5baud()` (`--init-iso9141`): Configura `ATSP3`, `ATIB10`, `ATSW96`, `ATST64`, header funcional `68 6A F1` (ou físico `48 <target> F1`), dispara `01 00` com timeout de 12s e valida as *Key Words* via `ATKW`.
@@ -1371,7 +1381,12 @@ Implementadas as 6 correções arquiteturais fundamentais para separação deter
 6. **Separação Estrita entre K-Line no Pino 7 vs K-Line Multiplexada em Outros Pinos (`verify_kline_pin_capability` & `--show-kline-pins`):**
    - O transceiver ISO 9141 / KWP2000 do Vgate vLinker MC+ está conectado **exclusivamente ao Pino 7** (o Pino 1 é transceiver `SW-CAN` GM e os Pinos 3/11 são transceiver diferencial `MS-CAN` Ford).
    - Catálogo `KLINE_PIN_TOPOLOGY` integrado ao `vlinker_diag.py` e ao `full_vehicle_scan.py` (`--profile vag_b6_kline`, `bmw_e46_kline`, `fiat_alfa_psa_legacy_kline`, `mercedes_sprinter_w901_w906_kline`) separa automaticamente os módulos nativos do Pino 7 dos módulos em pinos multiplexados (Pino 8 no BMW E46; Pinos 1, 3, 9, 12, 13 em Fiat/Alfa/Sprinter legada), indicando exatamente qual cabo adaptador/ponte física usar.
-7. **Emissão de Informes Periciais — Somente PDF na Pasta `informa` da Área de Trabalho:**
-   - Padronizado em todos os prompts e regras (`README.md`, `CLAUDE.md`, `PROMPT_PADRAO_UNIVERSAL_AGENTCARDIAG.txt`, `.agents/rules/diagnosticador.md`) que o laudo final deve gerar **somente 1 arquivo `.pdf`** dentro da pasta **`informa` na Área de Trabalho** (`C:\Users\Usuario\Desktop\informa\` no Windows / `~/Desktop/informa` ou `~/Escritorio/informa` no Linux), criando a pasta automaticamente caso não exista, sem gerar arquivos `.txt` ou duplicatas na pasta do projeto.
+7. **Gerador Instantâneo de Informes Periciais em PDF (`report_pdf_generator.py`) — Somente PDF na Pasta `informa` da Área de Trabalho:**
+   - Para **não deixar o trabalho do agente demorado**, o script [`report_pdf_generator.py`](file:///home/leonardof/AgentCarDiag/report_pdf_generator.py) recebe apenas um JSON ou dicionário Python e gera o PDF A4 em **~1,5 segundo** diretamente em `Desktop/informa/` (criando a pasta automaticamente se não existir):
+     - **Zero Página 2 Órfã:** Se não houver captura de osciloscópio, o layout ajusta tudo perfeitamente em **1 única página A4**. Se houver captura de osciloscópio, divide em **2 páginas A4 completas**.
+     - **Recorte Automático da Barra de Tarefas do Windows:** Remove automaticamente os `48px` inferiores de prints de tela cheia do `Scope.exe`.
+     - **Gráficos SVG Automáticos e Sem Sobreposição de Texto:** Renderiza os gráficos de telemetria (`RPM`, `Rail`, `MAP/Boost`, `STFT`) com legendas posicionadas fora da área de traçado.
+     - **Cabeçalho Limpo e Idioma Espanhol (`ES`) Padrão:** Sem QR Code `127.0.0.1` inacessível para o cliente.
+
 
 
