@@ -401,15 +401,30 @@ def render_report_html(spec: Dict[str, Any]) -> str:
     margin-bottom: 6px;
   }}
   .scope-caption {{ font-size: 10px; color: #1e293b; margin-bottom: 8px; }}
+  .author-badge {{
+    display: inline-block;
+    margin-top: 3px;
+    padding: 2px 7px;
+    background: #f1f5f9;
+    border-left: 3px solid #0284c7;
+    border-radius: 3px;
+    font-size: 9.2px;
+    font-weight: 700;
+    color: #0f172a;
+  }}
+  .author-badge span {{ color: #0284c7; font-weight: 800; }}
   .footer {{
-    margin-top: 6px;
+    margin-top: 5px;
     padding-top: 4px;
-    border-top: 1px solid #cbd5e1;
+    border-top: 1.5px solid #cbd5e1;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 8.8px;
-    color: #64748b;
+    color: #334155;
+    font-weight: 600;
   }}
+  .footer b {{ color: #0f172a; }}
 </style>
 </head>
 <body>
@@ -417,11 +432,13 @@ def render_report_html(spec: Dict[str, Any]) -> str:
     <div>
       <h1>{title}</h1>
       <div class="sub">{subtitle}</div>
+      <div class="author-badge">🤖 Agente de IA &amp; Ingeniero Especialista en Diagnóstico y Automatización Automotriz — Desarrollado por <span>Leonardo Fechio</span></div>
     </div>
     <div class="meta">
       <div><b>ID Informe:</b> {report_id}</div>
       <div><b>Fecha:</b> {date_str}</div>
       <div><b>Interfaz:</b> {scanner_str}</div>
+      <div><b>Autoría Técnica:</b> Ing. IA / <b>Leonardo Fechio</b></div>
     </div>
   </div>
 
@@ -462,8 +479,8 @@ def render_report_html(spec: Dict[str, Any]) -> str:
   {page2_html}
 
   <div class="footer">
-    <span>AgentCarDiag — Ingeniería Automotriz Pericial (OBD-II / UDS / Osciloscopio Hantek 1008C)</span>
-    <span>ID: {report_id}</span>
+    <span><b>AgentCarDiag AI</b> — Agente de IA &amp; Ingeniero Especialista en Diagnóstico y Automatización Automotriz | <b>Desarrollado por Leonardo Fechio</b></span>
+    <span>ID: <b>{report_id}</b></span>
   </div>
 </body>
 </html>
