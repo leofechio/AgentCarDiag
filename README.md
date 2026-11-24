@@ -94,8 +94,9 @@ Sempre que os testes iniciais via **vLinker MC+** (DTCs + Freeze Frame + Live Da
      Ao concluir, limpe com `ATAR` e `ATSH 7DF`.
 2. **Sessão Estendida UDS (`10 03`) vs. Modo `01` OBD-II:**
    - Em ECUs como a Delphi DCM6.2V (VW BiTDI), estar em sessão `10 03` bloqueia respostas aos PIDs do Modo `01`. Para gravar Live Data / Flight Recorder do Modo `01`, volte sempre à sessão padrão `10 01`.
-3. **Laudos Periciais Duplos (PDF A4 + TXT Celular):**
-   - Ao finalizar o diagnóstico, gere sempre o `.txt` compacto (40-42 colunas para celular/WhatsApp) e o `.pdf` A4 de alta resolução via Chrome Headless (`--headless --disable-gpu --no-pdf-header-footer --print-to-pdf=...`) com QR Code apontando para `http://127.0.0.1:8000/api/reports/{id}/view`.
+3. **Laudo Pericial Único — Somente PDF na Pasta `informa` da Área de Trabalho:**
+   - Ao finalizar o diagnóstico, gere **EXCLUSIVAMENTE um único arquivo `.pdf` A4** dentro da pasta **`informa` na Área de Trabalho** (criando a pasta automaticamente caso ainda não exista: `C:\Users\Usuario\Desktop\informa\` no Windows ou `~/Desktop/informa/` / `~/Escritorio/informa/` no Linux).
+   - **PROIBIDO** gerar arquivos `.txt`, cópias duplicadas do `.pdf` na pasta do projeto ou links extras. Gere **somente o PDF final** dentro da pasta `informa` da Área de Trabalho!
 4. **Retroalimentação Obrigatória no GitHub:**
    - Tudo o que você descobrir ou criar neste atendimento (novos DIDs/PIDs, diagnóstico do veículo, melhorias em scripts) **DEVE** ser documentado em [`memory.md`](memory.md) e enviado ao GitHub (`git add -A && git commit -m "feat(diag): ..." && git push origin main`) para atualizar o outro notebook!
 

@@ -55,7 +55,12 @@
   - Captura Burst CLI: `python hantek_tools/hantek_cli.py --capture --ch 1 2 3 4`
   - Streaming WebSocket ao vivo para a UI: `python hantek_tools/hantek_cli.py --ws ws://127.0.0.1:8000/ws/hardware --ch 1 2`
 
-## 5. Sincronização Simultânea via GitHub (Dual-Notebook Workflow)
+## 5. Emissão de Informes Periciais (SOMENTE PDF na Pasta `informa` da Área de Trabalho)
+- Todos os informes/laudos periciais gerados pelo agente devem produzir **EXCLUSIVAMENTE 1 arquivo `.pdf`** dentro da pasta **`informa` na Área de Trabalho** (`C:\Users\Usuario\Desktop\informa\` no Windows ou `~/Desktop/informa/` / `~/Escritorio/informa/` no Linux).
+- Se a pasta `informa` não existir na Área de Trabalho, ela deve ser criada automaticamente (`os.makedirs(..., exist_ok=True)`).
+- **NUNCA** gere arquivos `.txt` adicionais nem cópias duplicadas do `.pdf` dentro da pasta do projeto.
+
+## 6. Sincronização Simultânea via GitHub (Dual-Notebook Workflow)
 - Ambos os notebooks (Linux e Windows de trabalho) compartilham o mesmo repositório GitHub (`origin`).
 - Sempre que iniciar uma sessão: `git pull --rebase origin main`.
 - Sempre que concluir um diagnóstico, adicionar um novo DID/PID, script ou seção no `memory.md`: `git add -A && git commit -m "feat(diag): ..." && git push origin main`.

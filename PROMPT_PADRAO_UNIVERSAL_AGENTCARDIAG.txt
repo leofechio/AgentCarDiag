@@ -28,7 +28,12 @@ Após realizar os testes iniciais via **vLinker MC+** (leitura de DTCs, Freeze F
 3. Salve como Artifact HTML (`UserFacing: true`) e exiba a **mini-tela gráfica ao vivo diretamente dentro do chat** com `<agent-embed src="file:///<artifact_path>/hantek_guided_probe.html"></agent-embed>`, instruindo claramente o mecânico sobre onde espetar a agulha do Canal 1/Canal 2 e qual sinal esperar.
 4. Leia `http://127.0.0.1:8766/live` para inspecionar as métricas reais capturadas enquanto o mecânico faz o teste e dê o laudo pericial cruzando o sinal físico do Hantek com a leitura digital da ECU!
 
-### 4. Sua Primeira Ação Agora (Handshake Leve + Pergunta ao Operador)
+### 4. Regra Estrita de Emissão de Informe Pericial (SOMENTE PDF na Pasta `informa` da Área de Trabalho)
+- Ao gerar o informe/laudo pericial do veículo, gere **SOMENTE o arquivo em PDF (`.pdf`) e nada mais**!
+- **NÃO gere** arquivo `.txt` para celular, **NÃO salve** cópia duplicada do PDF na pasta do projeto e **NÃO exiba** lista com múltiplos arquivos.
+- Salve todos os PDFs exclusivamente dentro da pasta **`informa` na Área de Trabalho** (`C:\Users\Usuario\Desktop\informa\` no Windows ou `~/Desktop/informa/` / `~/Escritorio/informa/` no Linux). Se a pasta `informa` não existir na Área de Trabalho, o script deve criá-la automaticamente (`os.makedirs(desktop_informa_dir, exist_ok=True)`).
+
+### 5. Sua Primeira Ação Agora (Handshake Leve + Pergunta ao Operador)
 1. Verifique `http://127.0.0.1:8000/status`.
 2. Faça apenas um **handshake leve de 3 comandos** (`python vlinker_diag.py --handshake`: `ATRV`, `0902`/`22F190`, `03`).
 3. Informe o veículo detectado e a tensão da bateria, e **PERGUNTE IMEDIATAMENTE AO USUÁRIO: "Qual sintoma o veículo apresenta e quais módulos/sistemas devemos analisar agora?"**

@@ -1371,4 +1371,7 @@ Implementadas as 6 correções arquiteturais fundamentais para separação deter
 6. **Separação Estrita entre K-Line no Pino 7 vs K-Line Multiplexada em Outros Pinos (`verify_kline_pin_capability` & `--show-kline-pins`):**
    - O transceiver ISO 9141 / KWP2000 do Vgate vLinker MC+ está conectado **exclusivamente ao Pino 7** (o Pino 1 é transceiver `SW-CAN` GM e os Pinos 3/11 são transceiver diferencial `MS-CAN` Ford).
    - Catálogo `KLINE_PIN_TOPOLOGY` integrado ao `vlinker_diag.py` e ao `full_vehicle_scan.py` (`--profile vag_b6_kline`, `bmw_e46_kline`, `fiat_alfa_psa_legacy_kline`, `mercedes_sprinter_w901_w906_kline`) separa automaticamente os módulos nativos do Pino 7 dos módulos em pinos multiplexados (Pino 8 no BMW E46; Pinos 1, 3, 9, 12, 13 em Fiat/Alfa/Sprinter legada), indicando exatamente qual cabo adaptador/ponte física usar.
+7. **Emissão de Informes Periciais — Somente PDF na Pasta `informa` da Área de Trabalho:**
+   - Padronizado em todos os prompts e regras (`README.md`, `CLAUDE.md`, `PROMPT_PADRAO_UNIVERSAL_AGENTCARDIAG.txt`, `.agents/rules/diagnosticador.md`) que o laudo final deve gerar **somente 1 arquivo `.pdf`** dentro da pasta **`informa` na Área de Trabalho** (`C:\Users\Usuario\Desktop\informa\` no Windows / `~/Desktop/informa` ou `~/Escritorio/informa` no Linux), criando a pasta automaticamente caso não exista, sem gerar arquivos `.txt` ou duplicatas na pasta do projeto.
+
 
