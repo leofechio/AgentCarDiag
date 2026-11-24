@@ -17,10 +17,14 @@ from __future__ import annotations
 import copy
 import logging
 import math
+import os
+import subprocess
+import sys
 import time
 from time import sleep
 from typing import Dict, Generator, List, Optional, Tuple, Union
 
+import usb.backend.libusb1
 import usb.core
 import usb.util
 
@@ -28,6 +32,36 @@ logger = logging.getLogger("cardiag.hantek1008")
 
 HANTEK_VID = 0x0783
 HANTEK_PID = 0x5725
+
+
+def _get_usb_backend():
+    """
+    No Windows, tenta carregar automaticamente a DLL libusb-1.0.dll embutida no pacote
+    'libusb_package' (ou em C:\\Windows\\System32) para que o PyUSB funcione sem configuração manual.
+    """
+    try:
+        import libusb_package  # type: ignore
+
+        return usb.backend.libusb1.get_backend(find_library=libusb_package.find_library)
+    except Exception:
+        return None
+
+
+def _ensure_windows_scope_closed() -> None:
+    """
+    No Windows, se o software original 'Scope.exe' (C:\\Program Files (x86)\\Hantek\\Scope1008\\Scope.exe)
+    estiver aberto, ele trava o handle USB do Hantek 1008C com exclusividade. Fecha-o automaticamente.
+    """
+    if sys.platform.startswith("win"):
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", "Scope.exe"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except Exception:
+            pass
 
 
 class Hantek1008C:
@@ -97,16 +131,24 @@ class Hantek1008C:
     @staticmethod
     def is_connected() -> bool:
         """Verifica rapidamente se o Hantek 1008C (0783:5725) está plugado no barramento USB."""
-        return usb.core.find(idVendor=HANTEK_VID, idProduct=HANTEK_PID) is not None
+        backend = _get_usb_backend()
+        dev = usb.core.find(idVendor=HANTEK_VID, idProduct=HANTEK_PID, backend=backend) if backend else None
+        if dev is None:
+            dev = usb.core.find(idVendor=HANTEK_VID, idProduct=HANTEK_PID)
+        return dev is not None
 
     def connect(self) -> None:
         """Localiza o Hantek 1008C via USB e reivindica os endpoints Bulk OUT (0x02) e IN (0x81)."""
-        self._dev = usb.core.find(idVendor=HANTEK_VID, idProduct=HANTEK_PID)
+        _ensure_windows_scope_closed()
+        backend = _get_usb_backend()
+        self._dev = usb.core.find(idVendor=HANTEK_VID, idProduct=HANTEK_PID, backend=backend) if backend else None
+        if self._dev is None:
+            self._dev = usb.core.find(idVendor=HANTEK_VID, idProduct=HANTEK_PID)
         if self._dev is None:
             raise RuntimeError(
-                "Hantek 1008C (USB 0783:5725 / YDJ-2088) não encontrado. "
-                "Verifique o cabo USB (no Linux: regra udev /etc/udev/rules.d/99-hantek1008.rules; "
-                "no Windows: driver WinUSB/libusb via Zadig para YDJ-2088)."
+                "Hantek 1008C (USB 0783:5725 / YDJ-2088) não encontrado pelo libusb. "
+                "No Windows: feche o Scope.exe, instale 'pip install pyusb libusb-package' e "
+                "use o Zadig para associar o driver 'WinUSB' ao dispositivo 'HANTEK1008 / YDJ-2088 (0783:5725)'."
             )
 
         try:

@@ -48,19 +48,20 @@
 - **Protocolo:** `55 AA F0 F8` com checksum XOR seed `0x08` (`dbscar7/dbscar7.py`, `dbscar7/OPCODES.md`).
 
 ### 4.3 Osciloscópio Automotivo 8 Canais Hantek 1008C (`USB 0783:5725` / `YDJ-2088`)
-- **Driver & CLI:** `hantek_tools/hantek1008_driver.py` e `hantek_tools/hantek_cli.py`.
+- **PROIBIÇÃO NO WINDOWS:** **JAMAIS abra o programa `Scope.exe` (`C:\Program Files (x86)\Hantek\Scope1008\Scope.exe`) e JAMAIS peça print da tela do Hantek ao usuário!** Se `Scope.exe` estiver rodando, feche-o (`taskkill /F /IM Scope.exe`) e use `hantek_live_server.py` + `hantek_widget_gen.py` com `<agent-embed>`.
+- **Driver, Live Server & Widget:** `hantek_tools/hantek1008_driver.py`, `hantek_tools/hantek_live_server.py` (`http://127.0.0.1:8766/live`) e `hantek_tools/hantek_widget_gen.py`.
 - **Linux:** Regra udev `/etc/udev/rules.d/99-hantek1008.rules` (`ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0783", ATTR{idProduct}=="5725", MODE="0666"`).
-- **Windows:** Instalar driver `WinUSB` / `libusb-win32` via **Zadig** para o dispositivo `YDJ-2088 (0783:5725)`.
+- **Windows:** Instalar `pip install pyusb libusb-package` no `.venv` e instalar driver `WinUSB` via **Zadig** para o dispositivo `HANTEK1008 / YDJ-2088 (0783:5725)`.
 - **Comandos Rápidos:**
+  - Daemon Ao Vivo para Mini-Tela no Chat: `python hantek_tools/hantek_live_server.py --port 8766 --ch 1 2`
   - Captura Burst CLI: `python hantek_tools/hantek_cli.py --capture --ch 1 2 3 4`
-  - Streaming WebSocket ao vivo para a UI: `python hantek_tools/hantek_cli.py --ws ws://127.0.0.1:8000/ws/hardware --ch 1 2`
 
 ## 5. Emissão de Informes Periciais (SOMENTE PDF na Pasta `informa` da Área de Trabalho)
 - Todos os informes/laudos periciais gerados pelo agente devem produzir **EXCLUSIVAMENTE 1 arquivo `.pdf`** dentro da pasta **`informa` na Área de Trabalho** (`C:\Users\Usuario\Desktop\informa\` no Windows ou `~/Desktop/informa/` / `~/Escritorio/informa/` no Linux).
 - Se a pasta `informa` não existir na Área de Trabalho, ela deve ser criada automaticamente (`os.makedirs(..., exist_ok=True)`).
 - **NUNCA** gere arquivos `.txt` adicionais nem cópias duplicadas do `.pdf` dentro da pasta do projeto.
 
-## 6. Sincronização Simultânea via GitHub (Dual-Notebook Workflow)
+## 6. Verificação Diária de Defasagem & Sincronização Simultânea via GitHub (Dual-Notebook Workflow)
 - Ambos os notebooks (Linux e Windows de trabalho) compartilham o mesmo repositório GitHub (`origin`).
-- Sempre que iniciar uma sessão: `git pull --rebase origin main`.
+- **REGRA DO PRIMEIRO DIAGNÓSTICO DO DIA:** Mesmo que os arquivos do projeto já existam localmente, **se não foram baixados/sincronizados hoje, estão defasados**! Antes de iniciar qualquer diagnóstico ou procurar ferramentas locais, verifique a data do último commit (`git log -1 --format=%cd`) e execute obrigatoriamente `git fetch origin main && git pull --rebase origin main`.
 - Sempre que concluir um diagnóstico, adicionar um novo DID/PID, script ou seção no `memory.md`: `git add -A && git commit -m "feat(diag): ..." && git push origin main`.
