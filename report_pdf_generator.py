@@ -51,7 +51,7 @@ def get_desktop_informa_dir() -> Path:
 
 
 def find_browser_binary() -> str:
-    """Localiza Chrome / Edge / Chromium para renderização instantânea via --print-to-pdf."""
+    """Localiza Chrome / Edge / Chromium real para renderização instantânea via --print-to-pdf."""
     if sys.platform.startswith("win"):
         win_paths = [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -62,7 +62,18 @@ def find_browser_binary() -> str:
         for p in win_paths:
             if os.path.exists(p):
                 return p
-    for cmd in ("google-chrome", "chromium", "chromium-browser", "microsoft-edge", "chrome", "msedge"):
+    else:
+        linux_paths = [
+            "/opt/google/chrome/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/google-chrome",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+        ]
+        for p in linux_paths:
+            if os.path.exists(p):
+                return p
+    for cmd in ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "microsoft-edge", "chrome", "msedge"):
         found = shutil.which(cmd)
         if found:
             return found
@@ -72,7 +83,7 @@ def find_browser_binary() -> str:
 def crop_windows_taskbar_and_b64(img_path: str, crop_taskbar_px: int = 48) -> str:
     """
     Lê um print de tela (ex: Scope.exe no Windows), remove automaticamente a barra de tarefas
-    inferior do Windows (48px) caso seja um print de tela inteira (proporção ~16:9 / 16:10)
+    inferior do Windows (~4.5% da altura em prints 16:9 / 16:10 como 1920x1080, 1366x768, 1024x576)
     e retorna data URI Base64 pronta para o HTML.
     """
     p = Path(img_path)
@@ -83,9 +94,10 @@ def crop_windows_taskbar_and_b64(img_path: str, crop_taskbar_px: int = 48) -> st
 
         with Image.open(p) as im:
             w, h = im.size
-            # Se for print de tela inteira típico do Windows (ex: 1920x1080, 1366x768, 1600x900)
-            if w >= 1200 and h >= 700 and crop_taskbar_px > 0:
-                im = im.crop((0, 0, w, h - crop_taskbar_px))
+            if w >= 800 and h >= 450 and crop_taskbar_px > 0:
+                # Calcula recorte proporcional (~4.5% da altura: 48px em 1080p, 26px em 576p)
+                scaled_crop = max(24, int(round(h * (crop_taskbar_px / 1080.0))))
+                im = im.crop((0, 0, w, h - scaled_crop))
             buf = io.BytesIO()
             im.save(buf, format="PNG", optimize=True)
             b64 = base64.b64encode(buf.getvalue()).decode("ascii")
@@ -105,8 +117,8 @@ def build_telemetry_svg(
     ref_line: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Gera um gráfico SVG vetorial limpo para telemetria ao vivo sem sobreposição de rótulos."""
-    w, h = 760, 128
-    pad_l, pad_r, pad_t, pad_b = 46, 18, 22, 22
+    w, h = 760, 106
+    pad_l, pad_r, pad_t, pad_b = 46, 18, 20, 18
     plot_w = w - pad_l - pad_r
     plot_h = h - pad_t - pad_b
     span = max(y_max - y_min, 1e-6)
@@ -119,21 +131,23 @@ def build_telemetry_svg(
         f'<div class="chart-box"><div class="chart-title">{title}</div>',
         f'<svg viewBox="0 0 {w} {h}" width="100%" height="{h}" xmlns="http://www.w3.org/2000/svg">',
         f'<rect x="{pad_l}" y="{pad_t}" width="{plot_w}" height="{plot_h}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>',
-        f'<text x="{pad_l - 6}" y="{pad_t + 9}" text-anchor="end" font-size="9.5" fill="#64748b">{y_max:g} {unit}</text>',
-        f'<text x="{pad_l - 6}" y="{pad_t + plot_h}" text-anchor="end" font-size="9.5" fill="#64748b">{y_min:g} {unit}</text>',
-        f'<text x="{pad_l}" y="{h - 5}" font-size="9.5" fill="#64748b">0 s</text>',
-        f'<text x="{w - pad_r}" y="{h - 5}" text-anchor="end" font-size="9.5" fill="#64748b">{duration_label}</text>',
+        f'<text x="{pad_l - 6}" y="{pad_t + 8}" text-anchor="end" font-size="9" fill="#64748b">{y_max:g} {unit}</text>',
+        f'<text x="{pad_l - 6}" y="{pad_t + plot_h}" text-anchor="end" font-size="9" fill="#64748b">{y_min:g} {unit}</text>',
+        f'<text x="{pad_l}" y="{h - 4}" font-size="9" fill="#64748b">0 s</text>',
+        f'<text x="{w - pad_r}" y="{h - 4}" text-anchor="end" font-size="9" fill="#64748b">{duration_label}</text>',
     ]
 
     if ref_line:
         ry = y_px(float(ref_line["value"]))
         rcolor = ref_line.get("color", "#16a34a")
         rlabel = ref_line.get("label", "")
+        # Se a linha de referência estiver no topo do gráfico, posiciona o texto abaixo da linha e alinhado à direita
+        text_y = ry + 11 if (ry - pad_t) < 16 else ry - 4
         svg.append(
-            f'<line x1="{pad_l}" y1="{ry}" x2="{w - pad_r}" y2="{ry}" stroke="{rcolor}" stroke-width="1.5" stroke-dasharray="5,4"/>'
+            f'<line x1="{pad_l}" y1="{ry}" x2="{w - pad_r}" y2="{ry}" stroke="{rcolor}" stroke-width="1.4" stroke-dasharray="5,4"/>'
         )
         svg.append(
-            f'<text x="{pad_l + 8}" y="{max(pad_t + 11, ry - 4)}" font-size="9.5" font-weight="bold" fill="{rcolor}">{rlabel}</text>'
+            f'<text x="{w - pad_r - 6}" y="{text_y}" text-anchor="end" font-size="9" font-weight="bold" fill="{rcolor}">{rlabel}</text>'
         )
 
     legend_x = pad_l + 8
@@ -268,13 +282,13 @@ def render_report_html(spec: Dict[str, Any]) -> str:
 <style>
   @page {{
     size: A4 portrait;
-    margin: 9mm 11mm;
+    margin: 7.5mm 10mm;
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
     font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-    font-size: 10.5px;
-    line-height: 1.35;
+    font-size: 10px;
+    line-height: 1.3;
     color: #0f172a;
     background: #ffffff;
   }}
@@ -282,68 +296,68 @@ def render_report_html(spec: Dict[str, Any]) -> str:
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    border-bottom: 2.5px solid #0f172a;
-    padding-bottom: 6px;
-    margin-bottom: 8px;
+    border-bottom: 2.2px solid #0f172a;
+    padding-bottom: 5px;
+    margin-bottom: 6px;
   }}
-  .header h1 {{ font-size: 15.5px; font-weight: 800; color: #0f172a; letter-spacing: -0.2px; }}
-  .header .sub {{ font-size: 10px; color: #475569; margin-top: 2px; }}
-  .header .meta {{ text-align: right; font-size: 9.5px; color: #334155; line-height: 1.35; }}
+  .header h1 {{ font-size: 14.5px; font-weight: 800; color: #0f172a; letter-spacing: -0.2px; }}
+  .header .sub {{ font-size: 9.6px; color: #475569; margin-top: 1px; }}
+  .header .meta {{ text-align: right; font-size: 9px; color: #334155; line-height: 1.3; white-space: nowrap; }}
   .grid-2 {{
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 7px;
+    margin-bottom: 6px;
   }}
   .card {{
     border: 1px solid #cbd5e1;
     border-radius: 5px;
-    padding: 6px 8px;
+    padding: 5px 7px;
     background: #ffffff;
   }}
   .card-title {{
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 700;
     color: #0f172a;
     border-bottom: 1.5px solid #0284c7;
-    padding-bottom: 3px;
-    margin-bottom: 5px;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
     text-transform: uppercase;
   }}
   table.kv {{ width: 100%; border-collapse: collapse; }}
-  table.kv td {{ padding: 2px 0; font-size: 10px; }}
-  table.kv td.k {{ font-weight: 700; color: #334155; width: 42%; }}
+  table.kv td {{ padding: 1.5px 0; font-size: 9.5px; }}
+  table.kv td.k {{ font-weight: 700; color: #334155; width: 41%; }}
   table.kv td.v {{ text-align: right; color: #0f172a; }}
   .verdict-box {{
     border: 1px solid #fca5a5;
     border-left: 4px solid #dc2626;
     background: #fef2f2;
     border-radius: 5px;
-    padding: 7px 10px;
-    margin-bottom: 8px;
+    padding: 5.5px 9px;
+    margin-bottom: 6px;
   }}
-  .verdict-title {{ font-size: 11.5px; font-weight: 800; color: #991b1b; margin-bottom: 4px; }}
-  .verdict-box p {{ font-size: 10px; color: #7f1d1d; margin-bottom: 3px; }}
-  table.data {{ width: 100%; border-collapse: collapse; font-size: 9.6px; }}
+  .verdict-title {{ font-size: 10.8px; font-weight: 800; color: #991b1b; margin-bottom: 3px; }}
+  .verdict-box p {{ font-size: 9.5px; color: #7f1d1d; margin-bottom: 2.5px; }}
+  table.data {{ width: 100%; border-collapse: collapse; font-size: 9.2px; }}
   table.data th {{
     background: #1e293b;
     color: #ffffff;
     text-align: left;
-    padding: 4px 6px;
+    padding: 3.5px 5px;
     font-weight: 700;
   }}
   table.data td {{
     border-bottom: 1px solid #e2e8f0;
-    padding: 3.5px 6px;
+    padding: 2.8px 5px;
     vertical-align: middle;
   }}
   table.data tr.hi td {{ font-weight: 700; background: #f1f5f9; }}
   .badge {{
     display: inline-block;
-    padding: 1.5px 5px;
+    padding: 1px 4.5px;
     border-radius: 3px;
     font-weight: 700;
-    font-size: 9px;
+    font-size: 8.6px;
   }}
   .badge.crit {{ background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }}
   .badge.warn {{ background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }}
@@ -352,22 +366,23 @@ def render_report_html(spec: Dict[str, Any]) -> str:
   .chart-box {{
     border: 1px solid #cbd5e1;
     border-radius: 5px;
-    padding: 5px 8px;
-    margin-bottom: 7px;
+    padding: 4px 7px;
+    margin-bottom: 5px;
     background: #ffffff;
   }}
-  .chart-title {{ font-size: 10.5px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }}
+  .chart-title {{ font-size: 9.8px; font-weight: 700; color: #0f172a; margin-bottom: 1px; }}
   .roadmap-box {{
     border: 1px solid #86efac;
     border-left: 4px solid #16a34a;
     background: #f0fdf4;
     border-radius: 5px;
-    padding: 7px 10px;
-    margin-top: 6px;
+    padding: 5.5px 9px;
+    margin-top: 4px;
+    page-break-inside: avoid;
   }}
-  .roadmap-title {{ font-size: 11px; font-weight: 800; color: #14532d; margin-bottom: 4px; }}
-  .roadmap-box ol {{ padding-left: 16px; font-size: 10px; color: #14532d; }}
-  .roadmap-box li {{ margin-bottom: 3px; }}
+  .roadmap-title {{ font-size: 10.3px; font-weight: 800; color: #14532d; margin-bottom: 3px; }}
+  .roadmap-box ol {{ padding-left: 15px; font-size: 9.4px; color: #14532d; }}
+  .roadmap-box li {{ margin-bottom: 2px; }}
   .page-break {{ page-break-before: always; }}
   .section-hdr {{
     font-size: 12.5px;
