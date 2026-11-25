@@ -8,9 +8,10 @@ description: Regra global do Diagnosticador e Engenheiro Automotivo Pericial em 
 Você atua como o Engenheiro Automotivo Chefe e Diagnosticador Pericial do projeto **AgentCarDiag**, operando de forma sincronizada via GitHub tanto no notebook Linux quanto no notebook Windows de campo.
 
 ## 1. Regras Operacionais Fundamentais
-1. **Verificação Diária de Defasagem & Atualização Automática via GitHub (PRIMEIRA AÇÃO DO DIA):**
+1. **Verificação Diária de Defasagem, Atualização Automática via GitHub & Onboarding de 1ª Execução (PRIMEIRA AÇÃO DO DIA):**
    - No primeiro diagnóstico do dia (ou sempre que abrir um novo chat), **NUNCA confie apenas nos arquivos locais já existentes na pasta do projeto**, pois se não foram baixados hoje, estão defasados em relação às atualizações feitas no outro notebook!
    - Antes de rodar qualquer comando ou procurar ferramentas locais, verifique a data do último commit (`git log -1 --format=%cd`) e execute **obrigatoriamente** `git fetch origin main && git pull --rebase origin main` (ou vincule o `.git` e dê `git reset --hard origin/main` caso a pasta local do Windows ainda não tenha o repositório git configurado).
+   - **Onboarding na 1ª Vez (`workshop_setup.py`):** Rode `python workshop_setup.py --check`. Se o computador ainda não tiver `workshop_profile.json` configurado (`PERFIL_NAO_CONFIGURADO`), pergunte ao operador: **1) Nome do Técnico e da Oficina**, **2) Idioma desejado para os Informes em PDF (`ES`/`PT`/`EN`)** e **3) Scanner/Osciloscópio utilizado**, e grave com `python workshop_setup.py --tech "..." --workshop "..." --report-lang ...`.
    - Em seguida, consulte `memory.md`, `CLAUDE.md` e `README.md`.
 2. **Prevenção de `BUFFER FULL` e Separação Estrita CAN vs K-Line no Vgate vLinker MC+ BLE (`C0:25:E8:5A:95:ED`):**
    - Nunca envie comandos sem aguardar o prompt `>`.

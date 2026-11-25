@@ -59,3 +59,7 @@ server/app/static/*.bin
 # Extra database path
 server/app/data/*.db
 server/app/data/*.db-*
+
+# Local Workshop / Technician onboarding profile (per-machine setting)
+workshop_profile.json
+

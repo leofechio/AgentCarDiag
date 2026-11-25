@@ -177,12 +177,51 @@ def render_report_html(spec: Dict[str, Any]) -> str:
     Constrói o HTML A4 completo a partir de um dicionário JSON simples.
     Garante 1 página exata (sem Página 2 órfã) quando não há seção de osciloscópio,
     ou 2 páginas exatas quando há captura de osciloscópio.
+    Integra-se automaticamente ao perfil local da oficina (workshop_profile.json).
     """
+    try:
+        from workshop_setup import get_report_labels, load_workshop_profile
+
+        profile = load_workshop_profile()
+        labels = get_report_labels(spec.get("lang", ""))
+    except Exception:
+        profile = {}
+        labels = {
+            "card1_title": "1. Identificación del Vehículo (VIN & ECU)",
+            "card2_title": "2. Interfaz & Comprobaciones Físicas",
+            "col_module": "Módulo",
+            "col_dtc": "DTC",
+            "col_status": "Estado",
+            "col_desc": "Descripción Técnica",
+            "col_telem": "Telemetría en Vivo",
+            "col_min": "Mín",
+            "col_max": "Máx",
+            "col_avg": "Prom.",
+            "meta_id": "ID Informe",
+            "meta_date": "Fecha",
+            "meta_interface": "Interfaz",
+            "meta_tech": "Técnico / Taller",
+            "footer_credit": (
+                "<b>AgentCarDiag AI</b> — Agente de IA &amp; Ingeniero Especialista en Diagnóstico "
+                "y Automatización Automotriz | <b>Desarrollado por Leonardo Fechio</b>"
+            ),
+        }
+
     title = spec.get("title", "AGENTCARDIAG — INFORME PERICIAL COMPLETO (OBD-II / UDS / OSCILOSCOPIO)")
     subtitle = spec.get("subtitle", "Diagnóstico Electrónico Integral & Telemetría en Tiempo Real")
     report_id = spec.get("report_id", datetime.datetime.now().strftime("ACD-%Y%m%d-%H%M"))
     date_str = spec.get("date", datetime.datetime.now().strftime("%d/%m/%Y %H:%M"))
-    scanner_str = spec.get("scanner", "Vgate vLinker MC+ BLE (ISO 15765-4 CAN / UDS)")
+    scanner_str = spec.get("scanner") or profile.get("preferred_scanner") or "Vgate vLinker MC+ BLE (ISO 15765-4 CAN / UDS)"
+
+    # Se a oficina local tiver configurado Nome do Técnico ou Nome da Oficina, exibe de forma limpa sem repetir o rodapé
+    tech_name = spec.get("technician_name") or profile.get("technician_name", "")
+    workshop_name = spec.get("workshop_name") or profile.get("workshop_name", "")
+    tech_workshop_parts = [p for p in (workshop_name, tech_name) if p]
+    tech_meta_line = (
+        f'<div><b>{labels["meta_tech"]}:</b> {" | ".join(tech_workshop_parts)}</div>'
+        if tech_workshop_parts
+        else ""
+    )
 
     veh_rows = spec.get("vehicle_info", [])
     phys_rows = spec.get("physical_checks", [])
@@ -401,18 +440,6 @@ def render_report_html(spec: Dict[str, Any]) -> str:
     margin-bottom: 6px;
   }}
   .scope-caption {{ font-size: 10px; color: #1e293b; margin-bottom: 8px; }}
-  .author-badge {{
-    display: inline-block;
-    margin-top: 3px;
-    padding: 2px 7px;
-    background: #f1f5f9;
-    border-left: 3px solid #0284c7;
-    border-radius: 3px;
-    font-size: 9.2px;
-    font-weight: 700;
-    color: #0f172a;
-  }}
-  .author-badge span {{ color: #0284c7; font-weight: 800; }}
   .footer {{
     margin-top: 5px;
     padding-top: 4px;
@@ -432,23 +459,22 @@ def render_report_html(spec: Dict[str, Any]) -> str:
     <div>
       <h1>{title}</h1>
       <div class="sub">{subtitle}</div>
-      <div class="author-badge">🤖 Agente de IA &amp; Ingeniero Especialista en Diagnóstico y Automatización Automotriz — Desarrollado por <span>Leonardo Fechio</span></div>
     </div>
     <div class="meta">
-      <div><b>ID Informe:</b> {report_id}</div>
-      <div><b>Fecha:</b> {date_str}</div>
-      <div><b>Interfaz:</b> {scanner_str}</div>
-      <div><b>Autoría Técnica:</b> Ing. IA / <b>Leonardo Fechio</b></div>
+      <div><b>{labels["meta_id"]}:</b> {report_id}</div>
+      <div><b>{labels["meta_date"]}:</b> {date_str}</div>
+      <div><b>{labels["meta_interface"]}:</b> {scanner_str}</div>
+      {tech_meta_line}
     </div>
   </div>
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-title">1. Identificación del Vehículo (VIN &amp; ECU)</div>
+      <div class="card-title">{labels["card1_title"]}</div>
       <table class="kv">{veh_html}</table>
     </div>
     <div class="card">
-      <div class="card-title">2. Interfaz &amp; Comprobaciones Físicas</div>
+      <div class="card-title">{labels["card2_title"]}</div>
       <table class="kv">{phys_html}</table>
     </div>
   </div>
@@ -461,13 +487,13 @@ def render_report_html(spec: Dict[str, Any]) -> str:
   <div class="grid-2">
     <div class="card" style="padding:0; overflow:hidden;">
       <table class="data">
-        <thead><tr><th>Módulo</th><th>DTC</th><th>Estado</th><th>Descripción Técnica</th></tr></thead>
+        <thead><tr><th>{labels["col_module"]}</th><th>{labels["col_dtc"]}</th><th>{labels["col_status"]}</th><th>{labels["col_desc"]}</th></tr></thead>
         <tbody>{dtc_html}</tbody>
       </table>
     </div>
     <div class="card" style="padding:0; overflow:hidden;">
       <table class="data">
-        <thead><tr><th>Telemetría en Vivo</th><th>Mín</th><th>Máx</th><th>Prom.</th></tr></thead>
+        <thead><tr><th>{labels["col_telem"]}</th><th>{labels["col_min"]}</th><th>{labels["col_max"]}</th><th>{labels["col_avg"]}</th></tr></thead>
         <tbody>{telem_html}</tbody>
       </table>
     </div>
@@ -479,7 +505,7 @@ def render_report_html(spec: Dict[str, Any]) -> str:
   {page2_html}
 
   <div class="footer">
-    <span><b>AgentCarDiag AI</b> — Agente de IA &amp; Ingeniero Especialista en Diagnóstico y Automatización Automotriz | <b>Desarrollado por Leonardo Fechio</b></span>
+    <span>{labels["footer_credit"]}</span>
     <span>ID: <b>{report_id}</b></span>
   </div>
 </body>

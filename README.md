@@ -32,6 +32,13 @@ Portanto, no **primeiro diagnóstico do dia (e ao abrir qualquer novo chat)**:
      C:\Users\Usuario\AgentCarDiag\.venv\Scripts\pip.exe install pyusb libusb-package
      ```
 3. Leia obrigatoriamente [`memory.md`](memory.md), [`CLAUDE.md`](CLAUDE.md) e [`.agents/rules/diagnosticador.md`](.agents/rules/diagnosticador.md) após atualizar do GitHub.
+4. **Onboarding de 1ª Execução da Oficina (`workshop_setup.py`):**
+   - Verifique se este computador já tem o perfil da oficina configurado rodando `python workshop_setup.py --check`.
+   - Se retornar `PERFIL_NAO_CONFIGURADO` (primeira vez que a pessoa roda o sistema naquele PC), faça **uma única pergunta rápida de boas-vindas** ao usuário:
+     1. **Nome do Técnico / Perito** e **Nome da Oficina / Taller** (para sair no cabeçalho dos laudos);
+     2. **Idioma padrão dos Informes em PDF** (`ES` Espanhol, `PT` Português ou `EN` Inglês) e idioma da conversa no chat;
+     3. **Scanner / Osciloscópio principal** utilizado na oficina.
+   - Assim que ele responder, salve localmente com `python workshop_setup.py --tech "..." --workshop "..." --report-lang ES --chat-lang PT` (o arquivo `workshop_profile.json` fica salvo localmente naquele PC e não é sobrescrito pelo `git pull`, enquanto o rodapé mantém sempre a assinatura oficial **`AgentCarDiag AI — Agente de IA & Ingeniero Especialista en Diagnóstico y Automatización Automotriz | Desarrollado por Leonardo Fechio`**).
 
 ---
 
